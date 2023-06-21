@@ -2,8 +2,8 @@
 
 use crate::ast::{Ast, BinaryOperationKind, UnaryOperationKind};
 use crate::lexer::lexer;
+use crate::span::{Span, Spanned};
 use crate::token::Token;
-use crate::types::{Span, Spanned};
 use ariadne::{sources, Color, Label, Report, ReportKind};
 use chumsky::input::SpannedInput;
 use chumsky::prelude::*;
@@ -105,7 +105,7 @@ fn parse_statement<'tokens, 'src: 'tokens>(
         .then_ignore(just(Token::Operator('=')))
         .then(parse_expression())
         .map_with_span(|(ident, expr), span: Span| (ident, expr, span))
-        .map(|(ident, expr, span)| (Ast::Assignment(ident, Box::new(expr)), span.into()));
+        .map(|(ident, expr, span)| (Ast::Assignment(ident, Box::new(expr)), span));
 
     assignment
 }

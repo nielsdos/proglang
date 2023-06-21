@@ -1,5 +1,5 @@
+use crate::span::Span;
 use crate::token::Token;
-use crate::types::Span;
 use chumsky::prelude::*;
 
 pub fn lexer<'src>(

@@ -1,4 +1,4 @@
-use crate::types::Spanned;
+use crate::span::Spanned;
 
 #[derive(Debug, Clone)]
 pub enum BinaryOperationKind {
