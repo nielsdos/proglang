@@ -110,24 +110,38 @@ fn parse_statement<'tokens, 'src: 'tokens>(
     assignment
 }
 
+fn parse_statements<'tokens, 'src: 'tokens>(
+) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>>
+{
+    parse_statement()
+        .then_ignore(just(Token::Newline).repeated())
+        .repeated()
+        .collect::<Vec<_>>()
+        .map(|list| {
+            let span = if list.is_empty() {
+                SimpleSpan::new(0, 0)
+            } else {
+                (list[0].1.start..list[list.len() - 1].1.end).into()
+            };
+            (Ast::StatementList(list), span)
+        })
+}
+
 fn parser<'tokens, 'src: 'tokens>(
 ) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>>
 {
-    // TODO: zorgt dit dan effectief dat we geen dingen op 1 lijn kunnen hebben?
-    parse_statement().then_ignore(just(Token::Newline).repeated())
+    parse_statements()
 }
 
-pub fn parse(filename: Rc<str>, input: Rc<str>) {
-    // TODO: "a = " crasht de parser
-    let (tokens, lexer_errors) = lexer().parse(&*input).into_output_errors();
-    let parse_errors = if let Some(tokens) = &tokens {
+pub fn parse(filename: Rc<str>, input: &str) -> Option<Spanned<Ast>> {
+    let (tokens, lexer_errors) = lexer().parse(input).into_output_errors();
+    let (parse_errors, ast) = if let Some(tokens) = &tokens {
         let (ast, parse_errors) = parser()
             .parse(tokens.as_slice().spanned((input.len()..input.len()).into()))
             .into_output_errors();
-        println!("{:#?}", ast);
-        parse_errors
+        (parse_errors, ast)
     } else {
-        vec![]
+        (vec![], None)
     };
 
     lexer_errors
@@ -145,6 +159,8 @@ pub fn parse(filename: Rc<str>, input: Rc<str>) {
                     Label::new((filename.clone(), e.span().into_range())).with_color(Color::Red),
                 )
                 .finish()
-                .print(sources([(filename.clone(), input.clone())]));
+                .print(sources([(filename.clone(), input)]));
         });
+
+    ast
 }

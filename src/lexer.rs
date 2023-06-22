@@ -8,15 +8,17 @@ pub fn lexer<'src>(
 
     let newline = text::newline().to(Token::Newline);
 
-    let multi_operator = just("**")
-        .to(Token::DoubleStar)
-        .or(just("==").to(Token::DoubleEqual));
+    let multi_operator = choice((
+        just("**").to(Token::DoubleStar),
+        just("==").to(Token::DoubleEqual),
+    ));
 
     let single_operator = one_of("+-*/=").map(Token::Operator);
 
-    let parens = just('(')
-        .to(Token::LeftParen)
-        .or(just(')').to(Token::RightParen));
+    let parens = choice((
+        just('(').to(Token::LeftParen),
+        just(')').to(Token::RightParen),
+    ));
 
     let identifier = text::ascii::ident().map(|identifier| match identifier {
         "for" => Token::For,
