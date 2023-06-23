@@ -11,30 +11,57 @@ pub fn lexer<'src>(
     let multi_operator = choice((
         just("**").to(Token::DoubleStar),
         just("==").to(Token::DoubleEqual),
+        just("!=").to(Token::NotEqual),
+        just("//").to(Token::DoubleSlash),
     ));
 
-    let single_operator = one_of("+-*/=").map(Token::Operator);
+    let compound_assignment = choice((
+        just("+=").to(Token::PlusEqual),
+        just("-=").to(Token::MinusEqual),
+        just("*=").to(Token::StarEqual),
+        just("**=").to(Token::DoubleStarEqual),
+        just("/=").to(Token::SlashEqual),
+        just("%=").to(Token::PercentEqual),
+        just("//=").to(Token::DoubleSlashEqual),
+    ));
+
+    let single_operator = one_of("+-*/%=").map(Token::Operator);
 
     let parens = choice((
         just('(').to(Token::LeftParen),
         just(')').to(Token::RightParen),
     ));
 
-    let identifier = text::ascii::ident().map(|identifier| match identifier {
+    let block_control = just(':').to(Token::Colon);
+
+    let keyword_or_identifier = text::ascii::ident().map(|ident| match ident {
+        "if" => Token::If,
         "for" => Token::For,
         "while" => Token::While,
         "do" => Token::Do,
         "true" => Token::True,
         "false" => Token::False,
-        _ => Token::Identifier(identifier),
+        "fn" => Token::Fn,
+        "return" => Token::Return,
+        "pub" => Token::Pub,
+        "prot" => Token::Prot,
+        "priv" => Token::Priv,
+        "class" => Token::Class,
+        "interface" => Token::Interface,
+        "import" => Token::Import,
+        _ => Token::Identifier(ident),
     });
 
-    let token = num
-        .or(newline)
-        .or(parens)
-        .or(multi_operator)
-        .or(single_operator)
-        .or(identifier);
+    let token = choice((
+        newline,
+        num,
+        parens,
+        multi_operator,
+        compound_assignment,
+        single_operator,
+        block_control,
+        keyword_or_identifier,
+    ));
 
     token
         .map_with_span(|token, span| (token, span))

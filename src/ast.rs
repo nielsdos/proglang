@@ -5,7 +5,8 @@ pub enum BinaryOperationKind {
     Addition,
     Subtraction,
     Product,
-    Division,
+    DoubleDivision,
+    IntDivision,
     Power,
 }
 
@@ -18,6 +19,7 @@ pub enum UnaryOperationKind {
 #[derive(Debug)]
 pub enum Ast<'src> {
     LiteralInt(i64),
+    LiteralDouble(f64),
     Identifier(&'src str),
     BinaryOperation(
         Box<Spanned<Ast<'src>>>,
@@ -27,5 +29,7 @@ pub enum Ast<'src> {
     UnaryOperation(UnaryOperationKind, Box<Spanned<Ast<'src>>>),
     Assignment(&'src str, Box<Spanned<Ast<'src>>>),
     StatementList(Vec<Spanned<Ast<'src>>>),
+    FunctionDeclaration(&'src str, Box<Spanned<Ast<'src>>>),
+    /// Placeholder, useful for development purposes.
     Todo,
 }

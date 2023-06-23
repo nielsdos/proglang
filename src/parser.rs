@@ -73,11 +73,13 @@ fn parse_expression<'tokens, 'src: 'tokens>(
         );
 
         let product_or_divide = unary_expression.clone().foldl(
-            just(Token::Operator('*'))
-                .to(BinaryOperationKind::Product)
-                .or(just(Token::Operator('/')).to(BinaryOperationKind::Division))
-                .then(unary_expression)
-                .repeated(),
+            choice((
+                just(Token::Operator('*')).to(BinaryOperationKind::Product),
+                just(Token::Operator('/')).to(BinaryOperationKind::DoubleDivision),
+                just(Token::DoubleSlash).to(BinaryOperationKind::IntDivision),
+            ))
+            .then(unary_expression)
+            .repeated(),
             map_binary_operation,
         );
 
@@ -110,11 +112,11 @@ fn parse_statement<'tokens, 'src: 'tokens>(
     assignment
 }
 
-fn parse_statements<'tokens, 'src: 'tokens>(
+fn parse_statement_list<'tokens, 'src: 'tokens>(
 ) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>>
 {
     parse_statement()
-        .then_ignore(just(Token::Newline).repeated())
+        .padded_by(just(Token::Newline).repeated())
         .repeated()
         .collect::<Vec<_>>()
         .map(|list| {
@@ -127,10 +129,38 @@ fn parse_statements<'tokens, 'src: 'tokens>(
         })
 }
 
+fn parse_declarations<'tokens, 'src: 'tokens>(
+) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>>
+{
+    let identifier = select! {
+        Token::Identifier(ident) => ident,
+    };
+
+    just(Token::Fn)
+        .then(identifier)
+        .then_ignore(
+            just(Token::LeftParen)
+                .then(just(Token::RightParen))
+                .then(just(Token::Colon))
+                .then(just(Token::Newline)),
+        )
+        .map_with_span(|token, span| (token, span))
+        .then(parse_statement_list())
+        .padded_by(just(Token::Newline).repeated())
+        .map(|(fn_and_name, statements)| {
+            let name = fn_and_name.0 .1;
+            let span = fn_and_name.1.start..statements.1.end;
+            (
+                Ast::FunctionDeclaration(name, Box::new(statements)),
+                span.into(),
+            )
+        })
+}
+
 fn parser<'tokens, 'src: 'tokens>(
 ) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>>
 {
-    parse_statements()
+    parse_declarations()
 }
 
 pub fn parse(filename: Rc<str>, input: &str) -> Option<Spanned<Ast>> {

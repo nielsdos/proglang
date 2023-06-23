@@ -28,7 +28,7 @@ fn main() {
     let ast = parse(filename.into(), &src);
     if let Some(ast) = ast {
         if args.dump_ast {
-            println!("{:?}", ast);
+            println!("{:#?}", ast);
         }
     }
 }
