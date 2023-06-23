@@ -9,6 +9,10 @@ use chumsky::input::SpannedInput;
 use chumsky::prelude::*;
 use std::rc::Rc;
 
+pub struct ParserOptions {
+    pub dump_tokens: bool,
+}
+
 type ParserInput<'tokens, 'src> = SpannedInput<Token<'src>, Span, &'tokens [Spanned<Token<'src>>]>;
 
 type ParserExtra<'tokens, 'src> = extra::Err<Rich<'tokens, Token<'src>, Span>>;
@@ -163,8 +167,13 @@ fn parser<'tokens, 'src: 'tokens>(
     parse_declarations()
 }
 
-pub fn parse(filename: Rc<str>, input: &str) -> Option<Spanned<Ast>> {
+pub fn parse(filename: Rc<str>, input: &str, options: ParserOptions) -> Option<Spanned<Ast>> {
     let (tokens, lexer_errors) = lexer().parse(input).into_output_errors();
+
+    if options.dump_tokens {
+        println!("{:#?}", tokens);
+    }
+
     let (parse_errors, ast) = if let Some(tokens) = &tokens {
         let (ast, parse_errors) = parser()
             .parse(tokens.as_slice().spanned((input.len()..input.len()).into()))

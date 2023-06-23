@@ -1,4 +1,4 @@
-use crate::parser::parse;
+use crate::parser::{parse, ParserOptions};
 use clap::Parser;
 use clap_derive::Parser;
 
@@ -15,6 +15,9 @@ struct Args {
 
     #[arg(long, help = "Dumps the AST to standard output")]
     dump_ast: bool,
+
+    #[arg(long, help = "Dumps the tokens to standard output")]
+    dump_tokens: bool,
 }
 
 fn main() {
@@ -25,7 +28,13 @@ fn main() {
         .expect("File must be readable")
         .into_boxed_str();
 
-    let ast = parse(filename.into(), &src);
+    let ast = parse(
+        filename.into(),
+        &src,
+        ParserOptions {
+            dump_tokens: args.dump_tokens,
+        },
+    );
     if let Some(ast) = ast {
         if args.dump_ast {
             println!("{:#?}", ast);
