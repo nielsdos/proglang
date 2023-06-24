@@ -19,10 +19,15 @@ impl CodeGenContext {
     }
 }
 
+struct VariableInfo<'ctx> {
+    ptr: PointerValue<'ctx>,
+    ty: BasicTypeEnum<'ctx>,
+}
+
 struct CodeGenFunctionContext<'f, 'ctx> {
     builder: Builder<'ctx>,
     function_value: FunctionValue<'ctx>,
-    variables: HashMap<&'f str, PointerValue<'ctx>>,
+    variables: HashMap<&'f str, VariableInfo<'ctx>>,
 }
 
 struct CodeGenInner<'ctx> {
@@ -113,13 +118,14 @@ impl<'ctx> CodeGenInner<'ctx> {
             // TODO: default values maybe?
             let variable_type = codegen.type_to_llvm_type[variable_type];
             let variable_memory = builder.build_alloca(variable_type, variable_name);
-            variables.insert(variable_name, variable_memory);
+            variables.insert(variable_name, VariableInfo {
+                ptr: variable_memory,
+                ty: variable_type,
+            });
         }
 
         // Emit instructions
         let body = function_info.body();
-        println!("{:#?}", body);
-        println!("{:#?}", variables);
         let function_context = CodeGenFunctionContext {
             builder,
             function_value,
@@ -137,9 +143,7 @@ impl<'ctx> CodeGenInner<'ctx> {
         match &ast.0 {
             Ast::Identifier(name) => {
                 let variable = function_context.variables.get(name).expect("variable should exist");
-                // TODO: this shouldn't be hardcoded, but should be loaded from the table
-                let pointee_type = codegen.type_to_llvm_type.get(&Type::Int).expect("int should exist").into_int_type();
-                let value = function_context.builder.build_load(pointee_type, *variable, name);
+                let value = function_context.builder.build_load(variable.ty, variable.ptr, name);
                 Some(value)
             }
             Ast::UnaryOperation(operation, operand) => {
@@ -176,7 +180,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                 let condition_value = self.emit_instructions(condition, function_context, codegen).expect("condition should have a value");
 
                 let then_block = codegen.context.0.append_basic_block(function_context.function_value, "then");
-                let else_block = codegen.context.0.append_basic_block(function_context.function_value, "after_if"); // TODO
+                let else_block = codegen.context.0.append_basic_block(function_context.function_value, "after_if");
 
                 function_context.builder.build_conditional_branch(condition_value.into_int_value(), then_block, else_block);
 
@@ -197,9 +201,9 @@ impl<'ctx> CodeGenInner<'ctx> {
                 Some(ty.const_int(*value as u64, false).into())
             }
             Ast::Assignment(name, expression) => {
-                let pointer = function_context.variables.get(name).expect("variable should exist");
+                let variable = function_context.variables.get(name).expect("variable should exist");
                 let expression_value = self.emit_instructions(expression, function_context, codegen);
-                function_context.builder.build_store(*pointer, expression_value.expect("expression should have a value"));
+                function_context.builder.build_store(variable.ptr, expression_value.expect("expression should have a value"));
                 None
             }
             _ => None
