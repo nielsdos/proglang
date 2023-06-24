@@ -1,4 +1,11 @@
+use crate::span::Spanned;
 use std::fmt::{Display, Formatter};
+
+#[derive(Debug)]
+pub enum TokenTree<'src> {
+    Tree(Vec<TokenTree<'src>>),
+    Leaf(Spanned<Token<'src>>),
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token<'src> {
@@ -6,7 +13,7 @@ pub enum Token<'src> {
     LiteralString(&'src str),
     Identifier(&'src str),
     Operator(char),
-    Newline,
+    StatementEnd,
     LeftParen,
     RightParen,
     DoubleStar,
@@ -33,8 +40,9 @@ pub enum Token<'src> {
     Priv,
     Class,
     Interface,
-    Colon,
     Import,
+    BlockStart,
+    BlockEnd,
 }
 
 impl<'src> Display for Token<'src> {
@@ -63,7 +71,7 @@ impl<'src> Display for Token<'src> {
             Token::Do => write!(f, "do"),
             Token::True => write!(f, "true"),
             Token::False => write!(f, "false"),
-            Token::Newline => write!(f, "newline"),
+            Token::StatementEnd => write!(f, "end of statement"),
             Token::Fn => write!(f, "fn"),
             Token::Return => write!(f, "return"),
             Token::Pub => write!(f, "pub"),
@@ -71,8 +79,9 @@ impl<'src> Display for Token<'src> {
             Token::Priv => write!(f, "priv"),
             Token::Class => write!(f, "class"),
             Token::Interface => write!(f, "interface"),
-            Token::Colon => write!(f, ":"),
             Token::Import => write!(f, "import"),
+            Token::BlockStart => write!(f, "start of block"),
+            Token::BlockEnd => write!(f, "end of block"),
         }
     }
 }

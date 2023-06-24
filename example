@@ -1,8 +1,8 @@
-
-fn main():
-	azeaze = 3
-
-
-	a=1
-qsdfqsdf = 1
-	c = 3
+fn test():
+    a = 3
+    c = 1
+    b = 5
+    if a:
+        c = 0
+        b = 0
+    a = 0

@@ -3,22 +3,25 @@
 use crate::ast::{Ast, BinaryOperationKind, UnaryOperationKind};
 use crate::lexer::lexer;
 use crate::span::{Span, Spanned};
-use crate::token::Token;
+use crate::token::{Token, TokenTree};
 use ariadne::{sources, Color, Label, Report, ReportKind};
-use chumsky::input::SpannedInput;
+use chumsky::input::{BoxedStream, SpannedInput, Stream};
 use chumsky::prelude::*;
+use std::collections::VecDeque;
+use std::iter;
 use std::rc::Rc;
 
 pub struct ParserOptions {
-    pub dump_tokens: bool,
+    pub dump_token_tree: bool,
 }
 
-type ParserInput<'tokens, 'src> = SpannedInput<Token<'src>, Span, &'tokens [Spanned<Token<'src>>]>;
+type ParserInput<'tokens, 'src> =
+    SpannedInput<Token<'src>, Span, BoxedStream<'tokens, Spanned<Token<'src>>>>;
 
 type ParserExtra<'tokens, 'src> = extra::Err<Rich<'tokens, Token<'src>, Span>>;
 
 fn parse_expression<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>>
+) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>> + Clone
 {
     recursive(|expression| {
         let literal = select! {
@@ -100,37 +103,47 @@ fn parse_expression<'tokens, 'src: 'tokens>(
     })
 }
 
-fn parse_statement<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>>
-{
-    let identifier = select! {
-        Token::Identifier(ident) => ident,
-    };
-
-    let assignment = identifier
-        .then_ignore(just(Token::Operator('=')))
-        .then(parse_expression())
-        .map_with_span(|(ident, expr), span: Span| (ident, expr, span))
-        .map(|(ident, expr, span)| (Ast::Assignment(ident, Box::new(expr)), span));
-
-    assignment
-}
-
 fn parse_statement_list<'tokens, 'src: 'tokens>(
 ) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>>
 {
-    parse_statement()
-        .padded_by(just(Token::Newline).repeated())
-        .repeated()
-        .collect::<Vec<_>>()
-        .map(|list| {
-            let span = if list.is_empty() {
-                SimpleSpan::new(0, 0)
-            } else {
-                (list[0].1.start..list[list.len() - 1].1.end).into()
-            };
-            (Ast::StatementList(list), span)
-        })
+    recursive(|statement_list | {
+        let identifier = select! {
+            Token::Identifier(ident) => ident,
+        };
+
+        let if_check = just(Token::If).ignored()
+            .then(parse_expression())
+            .then_ignore(just(Token::BlockStart))
+            .then(statement_list)
+            .then_ignore(just(Token::BlockEnd))
+            .map_with_span(|((_, condition), statements), span: Span| (condition, statements, span))
+            .map(|(condition, statements, span)| (Ast::IfStatement {
+                condition: Box::new(condition),
+                statements: Box::new(statements),
+            }, span));
+
+        let assignment = identifier
+            .then_ignore(just(Token::Operator('=')))
+            .then(parse_expression())
+            .then_ignore(just(Token::StatementEnd))
+            .map_with_span(|(ident, expr), span: Span| (ident, expr, span))
+            .map(|(ident, expr, span)| (Ast::Assignment(ident, Box::new(expr)), span));
+
+        let statement = choice((assignment, if_check));
+
+        statement
+            .repeated()
+            .at_least(1)
+            .collect::<Vec<_>>()
+            .map(|list| {
+                let span = if list.is_empty() {
+                    SimpleSpan::new(0, 0)
+                } else {
+                    (list[0].1.start..list[list.len() - 1].1.end).into()
+                };
+                (Ast::StatementList(list), span)
+            })
+    })
 }
 
 fn parse_declarations<'tokens, 'src: 'tokens>(
@@ -145,12 +158,11 @@ fn parse_declarations<'tokens, 'src: 'tokens>(
         .then_ignore(
             just(Token::LeftParen)
                 .then(just(Token::RightParen))
-                .then(just(Token::Colon))
-                .then(just(Token::Newline)),
+                .then(just(Token::BlockStart)),
         )
         .map_with_span(|token, span| (token, span))
         .then(parse_statement_list())
-        .padded_by(just(Token::Newline).repeated())
+        .then_ignore(just(Token::BlockEnd))
         .map(|(fn_and_name, statements)| {
             let name = fn_and_name.0 .1;
             let span = fn_and_name.1.start..statements.1.end;
@@ -168,15 +180,33 @@ fn parser<'tokens, 'src: 'tokens>(
 }
 
 pub fn parse(filename: Rc<str>, input: &str, options: ParserOptions) -> Option<Spanned<Ast>> {
-    let (tokens, lexer_errors) = lexer().parse(input).into_output_errors();
+    let (token_tree, lexer_errors) = lexer().parse(input).into_output_errors();
 
-    if options.dump_tokens {
-        println!("{:#?}", tokens);
+    if options.dump_token_tree {
+        println!("{:#?}", token_tree);
     }
 
-    let (parse_errors, ast) = if let Some(tokens) = &tokens {
+    let (parse_errors, ast) = if let Some(token_tree) = token_tree {
+        // Convert token tree into token stream.
+        let mut queue = VecDeque::from_iter(token_tree.into_iter());
+        let iterator = iter::from_fn(move || loop {
+            let token_tree = queue.pop_front()?;
+            match token_tree {
+                TokenTree::Leaf(token) => break Some(token),
+                TokenTree::Tree(tree) => {
+                    let span: Span = (0..0).into(); // TODO
+                    queue.push_front(TokenTree::Leaf((Token::BlockEnd, span)));
+                    for entry in tree.into_iter().rev() {
+                        queue.push_front(entry);
+                    }
+                    queue.push_front(TokenTree::Leaf((Token::BlockStart, span)));
+                }
+            }
+        });
+        let token_stream = Stream::from_iter(Box::new(iterator)).boxed();
+        // Feed converted token stream into parser
         let (ast, parse_errors) = parser()
-            .parse(tokens.as_slice().spanned((input.len()..input.len()).into()))
+            .parse(token_stream.spanned((input.len()..input.len()).into()))
             .into_output_errors();
         (parse_errors, ast)
     } else {

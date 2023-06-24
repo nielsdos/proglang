@@ -16,8 +16,8 @@ struct Args {
     #[arg(long, help = "Dumps the AST to standard output")]
     dump_ast: bool,
 
-    #[arg(long, help = "Dumps the tokens to standard output")]
-    dump_tokens: bool,
+    #[arg(long, help = "Dumps the token tree to standard output")]
+    dump_token_tree: bool,
 }
 
 fn main() {
@@ -32,7 +32,7 @@ fn main() {
         filename.into(),
         &src,
         ParserOptions {
-            dump_tokens: args.dump_tokens,
+            dump_token_tree: args.dump_token_tree,
         },
     );
     if let Some(ast) = ast {

@@ -30,6 +30,10 @@ pub enum Ast<'src> {
     Assignment(&'src str, Box<Spanned<Ast<'src>>>),
     StatementList(Vec<Spanned<Ast<'src>>>),
     FunctionDeclaration(&'src str, Box<Spanned<Ast<'src>>>),
+    IfStatement {
+        condition: Box<Spanned<Ast<'src>>>,
+        statements: Box<Spanned<Ast<'src>>>,
+    },
     /// Placeholder, useful for development purposes.
     Todo,
 }
