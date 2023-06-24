@@ -1,14 +1,20 @@
+use crate::codegen::CodeGen;
+use crate::codegen_llvm::CodeGenContext;
 use crate::parser::{parse, ParserOptions};
 use crate::semantic_analysis::SemanticAnalyser;
 use clap::Parser;
 use clap_derive::Parser;
 
 pub mod ast;
+pub mod codegen;
+pub mod codegen_llvm;
+pub mod function_info;
 pub mod lexer;
 pub mod parser;
 pub mod semantic_analysis;
 pub mod span;
 pub mod token;
+pub mod type_system;
 
 #[derive(Parser)]
 struct Args {
@@ -44,5 +50,10 @@ fn main() {
 
         let mut semantic_analyser = SemanticAnalyser::new(&ast);
         semantic_analyser.analyse();
+        let codegen_context = CodeGenContext::new();
+        let mut codegen = CodeGen::new(&semantic_analyser, &codegen_context);
+        println!();
+        codegen.codegen_program();
+        codegen.dump();
     }
 }

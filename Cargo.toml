@@ -10,3 +10,4 @@ ariadne = "0.3.0"
 chumsky = { git = "https://github.com/zesterer/chumsky.git" }
 clap = "4.3.5"
 clap_derive = "4.3.2"
+inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm15-0", "target-x86"] }
