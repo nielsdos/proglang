@@ -103,6 +103,8 @@ impl<'ast> SemanticAnalyser<'ast> {
             Ast::UnaryOperation(_, rhs) => {
                 self.visit(rhs);
                 // TODO: typecheck
+                let rhs_type = *self.query_ast_type_spanned(rhs).expect("just visited rhs");
+                self.store_ast_type(node, rhs_type);
             }
             Ast::Assignment(identifier, rhs) => {
                 self.visit(rhs);

@@ -7,7 +7,7 @@ use inkwell::module::Module;
 use inkwell::types::{BasicTypeEnum, VoidType};
 use std::collections::HashMap;
 use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
-use crate::ast::{Ast, BinaryOperationKind};
+use crate::ast::{Ast, BinaryOperationKind, UnaryOperationKind};
 use crate::span::Spanned;
 
 pub struct CodeGenContext(Context);
@@ -132,6 +132,19 @@ impl<'ctx> CodeGenInner<'ctx> {
                 let pointee_type = codegen.type_to_llvm_type.get(&Type::Int).expect("int should exist").into_int_type();
                 let value = function_context.builder.build_load(pointee_type, *variable, name);
                 Some(value)
+            }
+            Ast::UnaryOperation(operation, operand) => {
+                let operand_value = self.emit_instructions(operand, function_context, codegen).expect("operand should have a value");
+                match operation {
+                    UnaryOperationKind::Minus => {
+                        // TODO: or float
+                        let result = function_context.builder.build_int_neg(operand_value.into_int_value(), "neg");
+                        Some(result.into())
+                    }
+                    UnaryOperationKind::Plus => {
+                        Some(operand_value)
+                    }
+                }
             }
             Ast::StatementList(statements) => {
                 for statement in statements {
