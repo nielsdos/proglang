@@ -1,15 +1,15 @@
+use crate::ast::{Ast, BinaryOperationKind, UnaryOperationKind};
 use crate::function_info::FunctionInfo;
 use crate::semantic_analysis::UniqueFunctionIdentifier;
+use crate::span::Spanned;
 use crate::type_system::Type;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
-use inkwell::types::{BasicTypeEnum, VoidType};
-use std::collections::HashMap;
 use inkwell::passes::PassManager;
+use inkwell::types::{BasicTypeEnum, VoidType};
 use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
-use crate::ast::{Ast, BinaryOperationKind, UnaryOperationKind};
-use crate::span::Spanned;
+use std::collections::HashMap;
 
 pub struct CodeGenContext(Context);
 
@@ -118,10 +118,13 @@ impl<'ctx> CodeGenInner<'ctx> {
             // TODO: default values maybe?
             let variable_type = codegen.type_to_llvm_type[variable_type];
             let variable_memory = builder.build_alloca(variable_type, variable_name);
-            variables.insert(variable_name, VariableInfo {
-                ptr: variable_memory,
-                ty: variable_type,
-            });
+            variables.insert(
+                variable_name,
+                VariableInfo {
+                    ptr: variable_memory,
+                    ty: variable_type,
+                },
+            );
         }
 
         // Emit instructions
@@ -131,37 +134,51 @@ impl<'ctx> CodeGenInner<'ctx> {
             function_value,
             variables,
         };
-        self.emit_instructions(body, &function_context, &codegen);
+        self.emit_instructions(body, &function_context, codegen);
 
         if function_context.is_bb_unterminated() {
             function_context.builder.build_return(None);
         }
     }
 
-    fn emit_instructions<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ast, 'ctx>, codegen: &CodeGenLLVM<'ctx>) -> Option<BasicValueEnum<'ctx>> {
+    fn emit_instructions<'ast>(
+        &self,
+        ast: &'ast Spanned<Ast<'ast>>,
+        function_context: &CodeGenFunctionContext<'ast, 'ctx>,
+        codegen: &CodeGenLLVM<'ctx>,
+    ) -> Option<BasicValueEnum<'ctx>> {
         println!("Visit {:?}", ast.0);
         match &ast.0 {
             Ast::Identifier(name) => {
-                let variable = function_context.variables.get(name).expect("variable should exist");
-                let value = function_context.builder.build_load(variable.ty, variable.ptr, name);
+                let variable = function_context
+                    .variables
+                    .get(name)
+                    .expect("variable should exist");
+                let value = function_context
+                    .builder
+                    .build_load(variable.ty, variable.ptr, name);
                 Some(value)
             }
             Ast::UnaryOperation(operation, operand) => {
-                let operand_value = self.emit_instructions(operand, function_context, codegen).expect("operand should have a value");
+                let operand_value = self
+                    .emit_instructions(operand, function_context, codegen)
+                    .expect("operand should have a value");
                 match operation {
                     UnaryOperationKind::Minus => {
                         if operand_value.is_int_value() {
                             // TODO: overflow?
-                            let result = function_context.builder.build_int_neg(operand_value.into_int_value(), "neg");
+                            let result = function_context
+                                .builder
+                                .build_int_neg(operand_value.into_int_value(), "neg");
                             Some(result.into())
                         } else {
-                            let result = function_context.builder.build_float_neg(operand_value.into_float_value(), "neg");
+                            let result = function_context
+                                .builder
+                                .build_float_neg(operand_value.into_float_value(), "neg");
                             Some(result.into())
                         }
                     }
-                    UnaryOperationKind::Plus => {
-                        Some(operand_value)
-                    }
+                    UnaryOperationKind::Plus => Some(operand_value),
                 }
             }
             Ast::StatementList(statements) => {
@@ -171,29 +188,55 @@ impl<'ctx> CodeGenInner<'ctx> {
                 None
             }
             Ast::BinaryOperation(lhs, operation, rhs) => {
-                let lhs_value = self.emit_instructions(lhs, function_context, codegen).expect("lhs should have a value");
-                let rhs_value = self.emit_instructions(rhs, function_context, codegen).expect("rhs should have a value");
+                let lhs_value = self
+                    .emit_instructions(lhs, function_context, codegen)
+                    .expect("lhs should have a value");
+                let rhs_value = self
+                    .emit_instructions(rhs, function_context, codegen)
+                    .expect("rhs should have a value");
                 if *operation == BinaryOperationKind::Equality {
-                    let result = function_context.builder.build_int_compare(inkwell::IntPredicate::EQ, lhs_value.into_int_value(), rhs_value.into_int_value(), "eq");
+                    let result = function_context.builder.build_int_compare(
+                        inkwell::IntPredicate::EQ,
+                        lhs_value.into_int_value(),
+                        rhs_value.into_int_value(),
+                        "eq",
+                    );
                     Some(result.into())
                 } else {
                     // TODO
                     None
                 }
             }
-            Ast::IfStatement { condition, statements } => {
-                let condition_value = self.emit_instructions(condition, function_context, codegen).expect("condition should have a value");
+            Ast::IfStatement {
+                condition,
+                statements,
+            } => {
+                let condition_value = self
+                    .emit_instructions(condition, function_context, codegen)
+                    .expect("condition should have a value");
 
-                let then_block = codegen.context.0.append_basic_block(function_context.function_value, "then");
-                let else_block = codegen.context.0.append_basic_block(function_context.function_value, "after_if");
+                let then_block = codegen
+                    .context
+                    .0
+                    .append_basic_block(function_context.function_value, "then");
+                let else_block = codegen
+                    .context
+                    .0
+                    .append_basic_block(function_context.function_value, "after_if");
 
-                function_context.builder.build_conditional_branch(condition_value.into_int_value(), then_block, else_block);
+                function_context.builder.build_conditional_branch(
+                    condition_value.into_int_value(),
+                    then_block,
+                    else_block,
+                );
 
                 function_context.builder.position_at_end(then_block);
                 self.emit_instructions(statements, function_context, codegen);
 
                 if function_context.is_bb_unterminated() {
-                    function_context.builder.build_unconditional_branch(else_block);
+                    function_context
+                        .builder
+                        .build_unconditional_branch(else_block);
                 }
 
                 function_context.builder.position_at_end(else_block);
@@ -201,20 +244,35 @@ impl<'ctx> CodeGenInner<'ctx> {
                 None
             }
             Ast::LiteralInt(value) => {
-                let ty = codegen.type_to_llvm_type.get(&Type::Int).expect("int should exist").into_int_type();
+                let ty = codegen
+                    .type_to_llvm_type
+                    .get(&Type::Int)
+                    .expect("int should exist")
+                    .into_int_type();
                 Some(ty.const_int(*value as u64, false).into())
             }
             Ast::LiteralDouble(value) => {
-                let ty = codegen.type_to_llvm_type.get(&Type::Double).expect("double should exist").into_float_type();
+                let ty = codegen
+                    .type_to_llvm_type
+                    .get(&Type::Double)
+                    .expect("double should exist")
+                    .into_float_type();
                 Some(ty.const_float(*value).into())
             }
             Ast::Assignment(name, expression) => {
-                let variable = function_context.variables.get(name).expect("variable should exist");
-                let expression_value = self.emit_instructions(expression, function_context, codegen);
-                function_context.builder.build_store(variable.ptr, expression_value.expect("expression should have a value"));
+                let variable = function_context
+                    .variables
+                    .get(name)
+                    .expect("variable should exist");
+                let expression_value =
+                    self.emit_instructions(expression, function_context, codegen);
+                function_context.builder.build_store(
+                    variable.ptr,
+                    expression_value.expect("expression should have a value"),
+                );
                 None
             }
-            _ => None
+            _ => None,
         }
     }
 
@@ -225,6 +283,10 @@ impl<'ctx> CodeGenInner<'ctx> {
 
 impl<'f, 'ctx> CodeGenFunctionContext<'f, 'ctx> {
     pub fn is_bb_unterminated(&self) -> bool {
-        self.builder.get_insert_block().expect("should have insert block").get_terminator().is_none()
+        self.builder
+            .get_insert_block()
+            .expect("should have insert block")
+            .get_terminator()
+            .is_none()
     }
 }

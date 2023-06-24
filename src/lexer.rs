@@ -6,9 +6,11 @@ use std::str::FromStr;
 pub fn lexer<'src>(
 ) -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra::Err<Rich<'src, char, Span>>> {
     // TODO: these two can fail, handle them gracefully
-    let dbl = text::int(10).slice().then(just('.')).then(text::digits(10).slice()).map_slice(|x| {
-        Token::LiteralDouble(f64::from_str(x).unwrap())
-    });
+    let dbl = text::int(10)
+        .slice()
+        .then(just('.'))
+        .then(text::digits(10).slice())
+        .map_slice(|x| Token::LiteralDouble(f64::from_str(x).unwrap()));
     let int = text::int(10).from_str().unwrapped().map(Token::LiteralInt);
 
     let multi_operator = choice((
