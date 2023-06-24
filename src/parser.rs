@@ -21,8 +21,8 @@ type ParserInput<'tokens, 'src> =
 type ParserExtra<'tokens, 'src> = extra::Err<Rich<'tokens, Token<'src>, Span>>;
 
 fn parse_expression<'tokens, 'src: 'tokens>(
-) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>> + Clone
-{
+) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>>
+       + Clone {
     recursive(|expression| {
         let literal = select! {
             Token::LiteralInt(int) => Ast::LiteralInt(int),
@@ -106,21 +106,27 @@ fn parse_expression<'tokens, 'src: 'tokens>(
 fn parse_statement_list<'tokens, 'src: 'tokens>(
 ) -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>>
 {
-    recursive(|statement_list | {
+    recursive(|statement_list| {
         let identifier = select! {
             Token::Identifier(ident) => ident,
         };
 
-        let if_check = just(Token::If).ignored()
+        let if_check = just(Token::If)
+            .ignored()
             .then(parse_expression())
             .then_ignore(just(Token::BlockStart))
             .then(statement_list)
             .then_ignore(just(Token::BlockEnd))
             .map_with_span(|((_, condition), statements), span: Span| (condition, statements, span))
-            .map(|(condition, statements, span)| (Ast::IfStatement {
-                condition: Box::new(condition),
-                statements: Box::new(statements),
-            }, span));
+            .map(|(condition, statements, span)| {
+                (
+                    Ast::IfStatement {
+                        condition: Box::new(condition),
+                        statements: Box::new(statements),
+                    },
+                    span,
+                )
+            });
 
         let assignment = identifier
             .then_ignore(just(Token::Operator('=')))

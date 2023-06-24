@@ -71,7 +71,11 @@ pub fn lexer<'src>(
         let tokens_stop = tokens_base
             .clone()
             .collect::<Vec<TokenTree>>()
-            .then(text::newline().to(Token::StatementEnd).map_with_span(|token, span| (token, span)))
+            .then(
+                text::newline()
+                    .to(Token::StatementEnd)
+                    .map_with_span(|token, span| (token, span)),
+            )
             .map(|(mut tree, end_token)| {
                 tree.push(TokenTree::Leaf(end_token));
                 tree
