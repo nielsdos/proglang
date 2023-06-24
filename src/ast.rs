@@ -1,6 +1,6 @@
 use crate::span::Spanned;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum BinaryOperationKind {
     Addition,
     Subtraction,
