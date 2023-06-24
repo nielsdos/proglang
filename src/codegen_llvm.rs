@@ -6,6 +6,7 @@ use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::types::{BasicTypeEnum, VoidType};
 use std::collections::HashMap;
+use inkwell::passes::PassManager;
 use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
 use crate::ast::{Ast, BinaryOperationKind, UnaryOperationKind};
 use crate::span::Spanned;
@@ -33,6 +34,7 @@ pub struct CodeGenLLVM<'ctx> {
     modules: Vec<CodeGenInner<'ctx>>,
     type_to_llvm_type: HashMap<Type, BasicTypeEnum<'ctx>>,
     void_type: VoidType<'ctx>,
+    pass_managers: Vec<PassManager<Module<'ctx>>>,
 }
 
 impl<'ctx> CodeGenLLVM<'ctx> {
@@ -52,12 +54,18 @@ impl<'ctx> CodeGenLLVM<'ctx> {
             modules: Vec::new(),
             type_to_llvm_type,
             void_type: context.0.void_type(),
+            pass_managers: Vec::new(),
         }
     }
 
     pub fn add_module(&mut self, module_name: &'ctx str) {
-        let inner = CodeGenInner::new(self.context.0.create_module(module_name));
+        let module = self.context.0.create_module(module_name);
+        let inner = CodeGenInner::new(module);
         self.modules.push(inner);
+        let pm = PassManager::create(());
+        pm.add_promote_memory_to_register_pass();
+        // TODO: more passes
+        self.pass_managers.push(pm);
     }
 
     pub fn codegen_function(
@@ -69,6 +77,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
 
         // TODO: hardcoded to first module right now
         self.modules[0].codegen_function(name, function_info, builder, self);
+        self.pass_managers[0].run_on(&self.modules[0].module);
     }
 
     pub fn dump(&self) {
