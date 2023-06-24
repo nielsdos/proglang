@@ -1,10 +1,12 @@
 use crate::parser::{parse, ParserOptions};
+use crate::semantic_analysis::SemanticAnalyser;
 use clap::Parser;
 use clap_derive::Parser;
 
 pub mod ast;
 pub mod lexer;
 pub mod parser;
+pub mod semantic_analysis;
 pub mod span;
 pub mod token;
 
@@ -39,5 +41,8 @@ fn main() {
         if args.dump_ast {
             println!("{:#?}", ast);
         }
+
+        let mut semantic_analyser = SemanticAnalyser::new(&ast);
+        semantic_analyser.analyse();
     }
 }

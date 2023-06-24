@@ -8,6 +8,7 @@ pub enum BinaryOperationKind {
     DoubleDivision,
     IntDivision,
     Power,
+    Equality,
 }
 
 #[derive(Debug, Clone)]
@@ -36,4 +37,12 @@ pub enum Ast<'src> {
     },
     /// Placeholder, useful for development purposes.
     Todo,
+}
+
+pub type AstHandle = *const ();
+
+impl Ast<'_> {
+    pub fn as_handle(&self) -> AstHandle {
+        self as *const _ as _
+    }
 }

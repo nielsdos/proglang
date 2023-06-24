@@ -99,7 +99,15 @@ fn parse_expression<'tokens, 'src: 'tokens>(
             map_binary_operation,
         );
 
-        addition_or_subtraction
+        let comparison_operation = addition_or_subtraction.clone().foldl(
+            just(Token::DoubleEqual)
+                .to(BinaryOperationKind::Equality)
+                .then(addition_or_subtraction)
+                .repeated(),
+            map_binary_operation,
+        );
+
+        comparison_operation
     })
 }
 
