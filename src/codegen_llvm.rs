@@ -150,9 +150,14 @@ impl<'ctx> CodeGenInner<'ctx> {
                 let operand_value = self.emit_instructions(operand, function_context, codegen).expect("operand should have a value");
                 match operation {
                     UnaryOperationKind::Minus => {
-                        // TODO: or float
-                        let result = function_context.builder.build_int_neg(operand_value.into_int_value(), "neg");
-                        Some(result.into())
+                        if operand_value.is_int_value() {
+                            // TODO: overflow?
+                            let result = function_context.builder.build_int_neg(operand_value.into_int_value(), "neg");
+                            Some(result.into())
+                        } else {
+                            let result = function_context.builder.build_float_neg(operand_value.into_float_value(), "neg");
+                            Some(result.into())
+                        }
                     }
                     UnaryOperationKind::Plus => {
                         Some(operand_value)
@@ -196,9 +201,12 @@ impl<'ctx> CodeGenInner<'ctx> {
                 None
             }
             Ast::LiteralInt(value) => {
-                // TODO: create a helper for getting a type like this?
                 let ty = codegen.type_to_llvm_type.get(&Type::Int).expect("int should exist").into_int_type();
                 Some(ty.const_int(*value as u64, false).into())
+            }
+            Ast::LiteralDouble(value) => {
+                let ty = codegen.type_to_llvm_type.get(&Type::Double).expect("double should exist").into_float_type();
+                Some(ty.const_float(*value).into())
             }
             Ast::Assignment(name, expression) => {
                 let variable = function_context.variables.get(name).expect("variable should exist");

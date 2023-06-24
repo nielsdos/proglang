@@ -1,10 +1,15 @@
 use crate::span::Span;
 use crate::token::{Token, TokenTree};
 use chumsky::prelude::*;
+use std::str::FromStr;
 
 pub fn lexer<'src>(
 ) -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra::Err<Rich<'src, char, Span>>> {
-    let num = text::int(10).from_str().unwrapped().map(Token::LiteralInt);
+    // TODO: these two can fail, handle them gracefully
+    let dbl = text::int(10).slice().then(just('.')).then(text::digits(10).slice()).map_slice(|x| {
+        Token::LiteralDouble(f64::from_str(x).unwrap())
+    });
+    let int = text::int(10).from_str().unwrapped().map(Token::LiteralInt);
 
     let multi_operator = choice((
         just("**").to(Token::DoubleStar),
@@ -49,7 +54,8 @@ pub fn lexer<'src>(
     });
 
     let token = choice((
-        num,
+        dbl,
+        int,
         parens,
         multi_operator,
         compound_assignment,

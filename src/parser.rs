@@ -26,6 +26,7 @@ fn parse_expression<'tokens, 'src: 'tokens>(
     recursive(|expression| {
         let literal = select! {
             Token::LiteralInt(int) => Ast::LiteralInt(int),
+            Token::LiteralDouble(dbl) => Ast::LiteralDouble(dbl),
         };
 
         let identifier = select! {

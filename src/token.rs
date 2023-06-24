@@ -10,6 +10,7 @@ pub enum TokenTree<'src> {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token<'src> {
     LiteralInt(i64),
+    LiteralDouble(f64),
     LiteralString(&'src str),
     Identifier(&'src str),
     Operator(char),
@@ -50,6 +51,7 @@ impl<'src> Display for Token<'src> {
         match self {
             Token::LiteralInt(int) => write!(f, "{}", int),
             Token::LiteralString(string) => write!(f, "{}", string),
+            Token::LiteralDouble(double) => write!(f, "{}", double),
             Token::Identifier(ident) => write!(f, "{}", ident),
             Token::Operator(c) => write!(f, "{}", c),
             Token::LeftParen => write!(f, "("),
