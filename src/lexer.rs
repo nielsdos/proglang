@@ -1,7 +1,30 @@
 use crate::span::Span;
 use crate::token::{Token, TokenTree};
+use chumsky::container::Container;
 use chumsky::prelude::*;
 use std::str::FromStr;
+
+struct FlatVec<T> {
+    inner: Vec<T>,
+}
+
+impl<T> Default for FlatVec<T> {
+    fn default() -> Self {
+        Self { inner: Vec::new() }
+    }
+}
+
+impl<T> Container<Vec<T>> for FlatVec<T> {
+    fn with_capacity(n: usize) -> Self {
+        Self {
+            inner: Vec::with_capacity(n),
+        }
+    }
+
+    fn push(&mut self, item: Vec<T>) {
+        self.inner.extend(item);
+    }
+}
 
 pub fn lexer<'src>(
 ) -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra::Err<Rich<'src, char, Span>>> {
@@ -101,11 +124,8 @@ pub fn lexer<'src>(
             tokens_stop
                 .or(new_block)
                 .separated_by(indentation)
-                .collect::<Vec<_>>()
-                .map(|x| {
-                    // TODO: clean up
-                    x.into_iter().flatten().collect::<Vec<_>>()
-                }),
+                .collect::<FlatVec<TokenTree>>()
+                .map(|result| result.inner),
         )
     });
 
