@@ -3,11 +3,12 @@ use crate::analysis::types::{SemanticErrorList, UniqueFunctionIdentifier};
 use crate::ast::{Assignment, AstHandle, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, StatementList, UnaryOperation};
 use crate::function_info::FunctionInfo;
 use crate::span::Span;
-use crate::type_system::Type;
+use crate::type_system::{ImplicitCast, Type};
 use std::collections::HashMap;
 
 pub(crate) struct TypeCheckerPass<'ast, 'f> {
     pub(crate) type_table: HashMap<AstHandle, Type>,
+    pub(crate) implicit_cast_table: HashMap<AstHandle, ImplicitCast>,
     pub(crate) current_function: Option<UniqueFunctionIdentifier<'ast>>,
     pub(crate) function_map: &'f mut HashMap<UniqueFunctionIdentifier<'ast>, FunctionInfo<'ast>>,
     pub(crate) semantic_error_list: &'f mut SemanticErrorList,
@@ -91,17 +92,23 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
 
     fn visit_unary_operation(&mut self, handle: AstHandle, node: &'ast UnaryOperation<'ast>, span: Span) -> Type {
         let rhs_type = self.visit(&node.1);
-        // TODO: we should amend the tree for numeric-like types
         if !rhs_type.is_numeric() {
-            // Don't report propagated errors
-            if !rhs_type.is_error() {
-                self.semantic_error_list.report_error(
-                    span,
-                    format!("unary operator '{}' expects a numeric type, found '{}' instead", node.0.to_human_readable_str(), rhs_type),
-                );
-            }
-            self.store_ast_type(handle, Type::Error);
-            return Type::Error;
+            // Try to implicitly cast it
+            return if rhs_type == Type::Bool {
+                self.implicit_cast_table.insert(handle, ImplicitCast::IntZext);
+                self.store_ast_type(handle, Type::Int);
+                Type::Int
+            } else {
+                // Don't report propagated errors
+                if !rhs_type.is_error() {
+                    self.semantic_error_list.report_error(
+                        span,
+                        format!("unary operator '{}' expects a numeric type, found '{}' instead", node.0.to_human_readable_str(), rhs_type),
+                    );
+                }
+                self.store_ast_type(handle, Type::Error);
+                Type::Error
+            };
         }
         self.store_ast_type(handle, rhs_type);
         rhs_type

@@ -12,7 +12,7 @@ impl<'c> CodeGen<'c> {
     pub fn new(semantic_analyser: &'c SemanticAnalyser<'c>, codegen_context: &'c CodeGenContext) -> Self {
         Self {
             semantic_analyser,
-            llvm_codegen: CodeGenLLVM::new(codegen_context),
+            llvm_codegen: CodeGenLLVM::new(codegen_context, semantic_analyser),
         }
     }
 

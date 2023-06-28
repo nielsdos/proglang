@@ -1,14 +1,17 @@
+use crate::analysis::semantic_analysis::SemanticAnalyser;
 use crate::analysis::types::UniqueFunctionIdentifier;
-use crate::ast::{Assignment, Ast, BinaryOperation, BinaryOperationKind, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, StatementList, UnaryOperation, UnaryOperationKind};
+use crate::ast::{
+    Assignment, Ast, AstHandle, BinaryOperation, BinaryOperationKind, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, StatementList, UnaryOperation, UnaryOperationKind,
+};
 use crate::function_info::FunctionInfo;
 use crate::span::Spanned;
-use crate::type_system::Type;
+use crate::type_system::{ImplicitCast, Type};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
 use inkwell::types::{BasicTypeEnum, VoidType};
-use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
+use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue};
 use std::collections::HashMap;
 
 pub struct CodeGenContext(Context);
@@ -32,10 +35,12 @@ struct CodeGenFunctionContext<'f, 'ctx> {
 
 struct CodeGenInner<'ctx> {
     module: Module<'ctx>,
+    semantic_analyser: &'ctx SemanticAnalyser<'ctx>,
 }
 
 pub struct CodeGenLLVM<'ctx> {
     context: &'ctx CodeGenContext,
+    semantic_analyser: &'ctx SemanticAnalyser<'ctx>,
     modules: Vec<CodeGenInner<'ctx>>,
     type_to_llvm_type: HashMap<Type, BasicTypeEnum<'ctx>>,
     void_type: VoidType<'ctx>,
@@ -43,7 +48,7 @@ pub struct CodeGenLLVM<'ctx> {
 }
 
 impl<'ctx> CodeGenLLVM<'ctx> {
-    pub fn new(context: &'ctx CodeGenContext) -> Self {
+    pub fn new(context: &'ctx CodeGenContext, semantic_analyser: &'ctx SemanticAnalyser) -> Self {
         let mut type_to_llvm_type: HashMap<Type, BasicTypeEnum<'ctx>> = HashMap::new();
 
         // Store basic types
@@ -53,6 +58,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
 
         Self {
             context,
+            semantic_analyser,
             modules: Vec::new(),
             type_to_llvm_type,
             void_type: context.0.void_type(),
@@ -62,7 +68,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
 
     pub fn add_module(&mut self, module_name: &'ctx str) {
         let module = self.context.0.create_module(module_name);
-        let inner = CodeGenInner::new(module);
+        let inner = CodeGenInner::new(module, self.semantic_analyser);
         self.modules.push(inner);
         let pm = PassManager::create(());
         //pm.add_promote_memory_to_register_pass();
@@ -86,8 +92,8 @@ impl<'ctx> CodeGenLLVM<'ctx> {
 }
 
 impl<'ctx> CodeGenInner<'ctx> {
-    pub fn new(module: Module<'ctx>) -> Self {
-        Self { module }
+    pub fn new(module: Module<'ctx>, semantic_analyser: &'ctx SemanticAnalyser<'ctx>) -> Self {
+        Self { module, semantic_analyser }
     }
 
     pub fn codegen_function(&self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
@@ -124,6 +130,29 @@ impl<'ctx> CodeGenInner<'ctx> {
         }
     }
 
+    fn emit_implicit_cast_if_necessary<'ast>(
+        &self,
+        handle: AstHandle,
+        value: BasicValueEnum<'ctx>,
+        function_context: &CodeGenFunctionContext<'ast, 'ctx>,
+        codegen: &CodeGenLLVM<'ctx>,
+    ) -> BasicValueEnum<'ctx> {
+        if let Some(implicit_cast_entry) = self.semantic_analyser.implicit_cast_entry(handle) {
+            match implicit_cast_entry {
+                ImplicitCast::IntZext => function_context
+                    .builder
+                    .build_int_z_extend(value.into_int_value(), codegen.type_to_llvm_type[&Type::Int].into_int_type(), "zext")
+                    .as_basic_value_enum(),
+                ImplicitCast::IntToDouble => function_context
+                    .builder
+                    .build_signed_int_to_float(value.into_int_value(), codegen.type_to_llvm_type[&Type::Double].into_float_type(), "double")
+                    .as_basic_value_enum(),
+            }
+        } else {
+            value
+        }
+    }
+
     fn emit_instructions<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ast, 'ctx>, codegen: &CodeGenLLVM<'ctx>) -> Option<BasicValueEnum<'ctx>> {
         println!("Visit {:?}", ast.0);
         match &ast.0 {
@@ -134,6 +163,7 @@ impl<'ctx> CodeGenInner<'ctx> {
             }
             Ast::UnaryOperation(UnaryOperation(operation, operand)) => {
                 let operand_value = self.emit_instructions(operand, function_context, codegen).expect("operand should have a value");
+                let operand_value = self.emit_implicit_cast_if_necessary(ast.0.as_handle(), operand_value, function_context, codegen);
                 match operation {
                     UnaryOperationKind::Minus => {
                         if operand_value.is_int_value() {
