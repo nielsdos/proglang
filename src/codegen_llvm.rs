@@ -13,8 +13,8 @@ use std::collections::HashMap;
 
 pub struct CodeGenContext(Context);
 
-impl CodeGenContext {
-    pub fn new() -> Self {
+impl Default for CodeGenContext {
+    fn default() -> Self {
         Self(Context::create())
     }
 }

@@ -70,7 +70,7 @@ fn main() -> ExitCode {
         }
 
         if semantic_analyser.errors().is_empty() {
-            let codegen_context = CodeGenContext::new();
+            let codegen_context = CodeGenContext::default();
             let mut codegen = CodeGen::new(&semantic_analyser, &codegen_context);
             println!();
             codegen.codegen_program();
