@@ -37,8 +37,8 @@ struct Args {
 fn main() -> ExitCode {
     let args = Args::parse();
 
-    let filename: Rc<str> = args.filename.into_boxed_str().into();
-    let input: Rc<str> = std::fs::read_to_string(&*filename).expect("File must be readable").into_boxed_str().into();
+    let filename: Rc<str> = args.filename.into();
+    let input: Rc<str> = std::fs::read_to_string(&*filename).expect("File must be readable").into();
 
     let ast = parse(
         filename.clone(),
