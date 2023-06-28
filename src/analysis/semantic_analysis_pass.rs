@@ -1,4 +1,4 @@
-use crate::ast::{Assignment, Ast, AstHandle, BinaryOperation, FunctionDeclaration, Identifier, IfStatement, ImplicitCast, LiteralBool, LiteralDouble, LiteralInt, StatementList, UnaryOperation};
+use crate::ast::{Assignment, Ast, AstHandle, BinaryOperation, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, StatementList, UnaryOperation};
 use crate::span::{Span, Spanned};
 
 pub trait SemanticAnalysisPass<'ast, T: Default> {
@@ -15,7 +15,6 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
             Ast::StatementList(inner) => self.visit_statement_list(handle, inner, node.1),
             Ast::FunctionDeclaration(inner) => self.visit_function_declaration(handle, inner, node.1),
             Ast::IfStatement(inner) => self.visit_if_statement(handle, inner, node.1),
-            Ast::ImplicitCast(inner) => self.visit_implicit_cast(handle, inner, node.1),
             Ast::Todo => todo!(),
         }
     }
@@ -23,45 +22,50 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
     fn visit_literal_int(&mut self, _: AstHandle, _: &'ast LiteralInt, _: Span) -> T {
         T::default()
     }
+
     fn visit_literal_double(&mut self, _: AstHandle, _: &'ast LiteralDouble, _: Span) -> T {
         T::default()
     }
+
     fn visit_literal_bool(&mut self, _: AstHandle, _: &'ast LiteralBool, _: Span) -> T {
         T::default()
     }
+
     fn visit_identifier(&mut self, _: AstHandle, _: &'ast Identifier<'ast>, _: Span) -> T {
         T::default()
     }
+
     fn visit_binary_operation(&mut self, _: AstHandle, node: &'ast BinaryOperation<'ast>, _: Span) -> T {
         self.visit(&node.0);
         self.visit(&node.2);
         T::default()
     }
+
     fn visit_unary_operation(&mut self, _: AstHandle, node: &'ast UnaryOperation<'ast>, _: Span) -> T {
         self.visit(&node.1);
         T::default()
     }
+
     fn visit_assignment(&mut self, _: AstHandle, node: &'ast Assignment<'ast>, _: Span) -> T {
         self.visit(&node.1);
         T::default()
     }
+
     fn visit_statement_list(&mut self, _: AstHandle, node: &'ast StatementList<'ast>, _: Span) -> T {
         for statement in &node.0 {
             self.visit(statement);
         }
         T::default()
     }
+
     fn visit_function_declaration(&mut self, _: AstHandle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> T {
         self.visit(&node.1);
         T::default()
     }
+
     fn visit_if_statement(&mut self, _: AstHandle, node: &'ast IfStatement<'ast>, _: Span) -> T {
         self.visit(&node.condition);
         self.visit(&node.statements);
-        T::default()
-    }
-    fn visit_implicit_cast(&mut self, _: AstHandle, node: &'ast ImplicitCast<'ast>, _: Span) -> T {
-        self.visit(&node.expression);
         T::default()
     }
 }

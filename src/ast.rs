@@ -1,5 +1,4 @@
 use crate::span::Spanned;
-use crate::type_system::Type;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum BinaryOperationKind {
@@ -50,11 +49,6 @@ pub struct IfStatement<'src> {
     pub condition: Box<Spanned<Ast<'src>>>,
     pub statements: Box<Spanned<Ast<'src>>>,
 }
-#[derive(Debug)]
-pub struct ImplicitCast<'src> {
-    pub to_type: Type,
-    pub expression: Box<Spanned<Ast<'src>>>,
-}
 
 #[derive(Debug)]
 pub enum Ast<'src> {
@@ -68,8 +62,6 @@ pub enum Ast<'src> {
     StatementList(StatementList<'src>),
     FunctionDeclaration(FunctionDeclaration<'src>),
     IfStatement(IfStatement<'src>),
-    // Nodes that are created internally in the semantic analysis pass
-    ImplicitCast(ImplicitCast<'src>),
     /// Placeholder, useful for development purposes.
     Todo,
 }
