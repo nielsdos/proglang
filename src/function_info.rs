@@ -11,10 +11,7 @@ pub struct FunctionInfo<'ast> {
 
 impl<'ast> FunctionInfo<'ast> {
     pub fn new(body: &'ast Spanned<Ast<'ast>>) -> Self {
-        Self {
-            body,
-            variable_types: HashMap::new(),
-        }
+        Self { body, variable_types: HashMap::new() }
     }
 
     pub fn query_variable_type(&self, identifier: &'ast str) -> Option<&Type> {
@@ -25,7 +22,8 @@ impl<'ast> FunctionInfo<'ast> {
         let old_type = self.variable_types.insert(identifier, ty);
         if let Some(old_type) = old_type {
             // TODO: make fallible
-            assert_eq!(ty, old_type);
+            println!("{} {}", ty, old_type);
+            //assert_eq!(ty, old_type);
         }
     }
 

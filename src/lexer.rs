@@ -16,9 +16,7 @@ impl<T> Default for FlatVec<T> {
 
 impl<T> Container<Vec<T>> for FlatVec<T> {
     fn with_capacity(n: usize) -> Self {
-        Self {
-            inner: Vec::with_capacity(n),
-        }
+        Self { inner: Vec::with_capacity(n) }
     }
 
     fn push(&mut self, item: Vec<T>) {
@@ -26,8 +24,7 @@ impl<T> Container<Vec<T>> for FlatVec<T> {
     }
 }
 
-pub fn lexer<'src>(
-) -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra::Err<Rich<'src, char, Span>>> {
+pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra::Err<Rich<'src, char, Span>>> {
     // TODO: these two can fail, handle them gracefully
     let dbl = text::int(10)
         .slice()
@@ -55,18 +52,15 @@ pub fn lexer<'src>(
 
     let single_operator = one_of("+-*/%=").map(Token::Operator);
 
-    let parens = choice((
-        just('(').to(Token::LeftParen),
-        just(')').to(Token::RightParen),
-    ));
+    let parens = choice((just('(').to(Token::LeftParen), just(')').to(Token::RightParen)));
 
     let keyword_or_identifier = text::ascii::ident().map(|ident| match ident {
         "if" => Token::If,
         "for" => Token::For,
         "while" => Token::While,
         "do" => Token::Do,
-        "true" => Token::True,
-        "false" => Token::False,
+        "true" => Token::LiteralBool(true),
+        "false" => Token::LiteralBool(false),
         "fn" => Token::Fn,
         "return" => Token::Return,
         "pub" => Token::Pub,
@@ -78,21 +72,11 @@ pub fn lexer<'src>(
         _ => Token::Identifier(ident),
     });
 
-    let token = choice((
-        dbl,
-        int,
-        parens,
-        multi_operator,
-        compound_assignment,
-        single_operator,
-        keyword_or_identifier,
-    ));
+    let token = choice((dbl, int, parens, multi_operator, compound_assignment, single_operator, keyword_or_identifier));
 
     let block = recursive(|block| {
         // TODO: support tabs
-        let indentation = just(' ')
-            .repeated()
-            .configure(|cfg, &parent_indentation| cfg.exactly(parent_indentation));
+        let indentation = just(' ').repeated().configure(|cfg, &parent_indentation| cfg.exactly(parent_indentation));
         let tokens_base = token
             .map_with_span(|token, span| (token, span))
             .padded_by(text::inline_whitespace())
@@ -102,31 +86,19 @@ pub fn lexer<'src>(
         let tokens_stop = tokens_base
             .clone()
             .collect::<Vec<TokenTree>>()
-            .then(
-                text::newline()
-                    .to(Token::StatementEnd)
-                    .map_with_span(|token, span| (token, span)),
-            )
+            .then(text::newline().to(Token::StatementEnd).map_with_span(|token, span| (token, span)))
             .map(|(mut tree, end_token)| {
                 tree.push(TokenTree::Leaf(end_token));
                 tree
             });
-        let new_block = tokens_base
-            .collect::<Vec<TokenTree>>()
-            .then(just(':').then(text::newline()))
-            .then(block)
-            .map(|((mut line, _), block)| {
-                line.push(TokenTree::Tree(block));
-                line
-            });
+        let new_block = tokens_base.collect::<Vec<TokenTree>>().then(just(':').then(text::newline())).then(block).map(|((mut line, _), block)| {
+            line.push(TokenTree::Tree(block));
+            line
+        });
 
-        text::whitespace().count().ignore_with_ctx(
-            tokens_stop
-                .or(new_block)
-                .separated_by(indentation)
-                .collect::<FlatVec<TokenTree>>()
-                .map(|result| result.inner),
-        )
+        text::whitespace()
+            .count()
+            .ignore_with_ctx(tokens_stop.or(new_block).separated_by(indentation).collect::<FlatVec<TokenTree>>().map(|result| result.inner))
     });
 
     block.with_ctx(0)

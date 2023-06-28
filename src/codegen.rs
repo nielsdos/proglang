@@ -1,6 +1,7 @@
+use crate::analysis::semantic_analysis::SemanticAnalyser;
+use crate::analysis::types::UniqueFunctionIdentifier;
 use crate::codegen_llvm::{CodeGenContext, CodeGenLLVM};
 use crate::function_info::FunctionInfo;
-use crate::semantic_analysis::{SemanticAnalyser, UniqueFunctionIdentifier};
 
 pub struct CodeGen<'c> {
     semantic_analyser: &'c SemanticAnalyser<'c>,
@@ -8,10 +9,7 @@ pub struct CodeGen<'c> {
 }
 
 impl<'c> CodeGen<'c> {
-    pub fn new(
-        semantic_analyser: &'c SemanticAnalyser<'c>,
-        codegen_context: &'c CodeGenContext,
-    ) -> Self {
+    pub fn new(semantic_analyser: &'c SemanticAnalyser<'c>, codegen_context: &'c CodeGenContext) -> Self {
         Self {
             semantic_analyser,
             llvm_codegen: CodeGenLLVM::new(codegen_context),
