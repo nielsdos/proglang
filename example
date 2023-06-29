@@ -4,7 +4,7 @@
 fn test():
     a = 123.0
     
-    if a:
+    if b:
         a = 1.0
 
 

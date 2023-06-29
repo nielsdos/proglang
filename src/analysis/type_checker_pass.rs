@@ -55,12 +55,15 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         Type::Bool
     }
 
-    fn visit_identifier(&mut self, handle: AstHandle, node: &'ast Identifier<'ast>, _: Span) -> Type {
+    fn visit_identifier(&mut self, handle: AstHandle, node: &'ast Identifier<'ast>, span: Span) -> Type {
         if let Some(&ty) = self.current_function_scope().expect("must be in function context").query_variable_type(node.0) {
             self.store_ast_type(handle, ty);
             ty
         } else {
-            // TODO: error reporting
+            self.semantic_error_list.report_error(
+                span,
+                format!("the variable '{}' was not found in the current active scope", node.0),
+            );
             // TODO: probably we need real lexical scoping...
             Type::Error
         }
