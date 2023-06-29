@@ -200,7 +200,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                 let lhs_value = self.emit_implicit_cast_if_necessary(lhs.0.as_handle(), lhs_value, function_context, codegen);
                 let rhs_value = self.emit_instructions(rhs, function_context, codegen).expect("rhs should have a value");
                 let rhs_value = self.emit_implicit_cast_if_necessary(rhs.0.as_handle(), rhs_value, function_context, codegen);
-                // TODO: overflow handling, check NaN handling
+                // TODO: overflow handling, check NaN handling, division by zero checking, power of zero checking
 
                 if operation.is_comparison_op() {
                     if lhs_value.is_float_value() {
@@ -232,6 +232,13 @@ impl<'ctx> CodeGenInner<'ctx> {
                                 Some(function_context.builder.build_float_sub(lhs_value.into_float_value(), rhs_value.into_float_value(), "sub").into())
                             } else {
                                 Some(function_context.builder.build_int_sub(lhs_value.into_int_value(), rhs_value.into_int_value(), "sub").into())
+                            }
+                        }
+                        BinaryOperationKind::Product => {
+                            if lhs_value.is_float_value() {
+                                Some(function_context.builder.build_float_mul(lhs_value.into_float_value(), rhs_value.into_float_value(), "mul").into())
+                            } else {
+                                Some(function_context.builder.build_int_mul(lhs_value.into_int_value(), rhs_value.into_int_value(), "mul").into())
                             }
                         }
                         _ => unimplemented!(),
