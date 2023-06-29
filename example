@@ -1,9 +1,8 @@
 fn test():
-    a = true
-    b = ---a
-    c = true + true
-    d = 1 + true
-    e = 2.0 + true
-    f = 2.5 - 1
-    if false == 0.0:
-        f = 0.0
+    
+    a = 3
+    
+    b=3
+    
+    
+    

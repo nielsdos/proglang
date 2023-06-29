@@ -91,14 +91,15 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
                 tree.push(TokenTree::Leaf(end_token));
                 tree
             });
+        let empty = text::newline().ignored().map(|_| vec![]);
         let new_block = tokens_base.collect::<Vec<TokenTree>>().then(just(':').then(text::newline())).then(block).map(|((mut line, _), block)| {
             line.push(TokenTree::Tree(block));
             line
         });
 
-        text::whitespace()
+        text::inline_whitespace()
             .count()
-            .ignore_with_ctx(tokens_stop.or(new_block).separated_by(indentation).collect::<FlatVec<TokenTree>>().map(|result| result.inner))
+            .ignore_with_ctx(tokens_stop.or(new_block).or(empty).separated_by(indentation).collect::<FlatVec<TokenTree>>().map(|result| result.inner))
     });
 
     block.with_ctx(0)
