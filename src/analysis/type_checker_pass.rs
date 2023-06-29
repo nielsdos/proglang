@@ -70,7 +70,10 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         let lhs_type = self.visit(&node.0);
         let rhs_type = self.visit(&node.2);
 
-        // TODO: handle error type
+        if lhs_type.is_error() || rhs_type.is_error() {
+            self.store_ast_type(handle, Type::Error);
+            return Type::Error;
+        }
 
         let target_type = if lhs_type == Type::Double || rhs_type == Type::Double { Type::Double } else { Type::Int };
 
@@ -92,15 +95,6 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         if rhs_type != target_type {
             self.implicit_cast_table.insert(node.2 .0.as_handle(), compute_target_type(&rhs_type));
         }
-
-        /*        if lhs_type != rhs_type {
-            if !lhs_type.is_error() && !rhs_type.is_error() {
-                self.semantic_error_list
-                    .report_error(span, format!("types in binary operation don't match, found '{}' and '{}'", lhs_type, rhs_type));
-            }
-            self.store_ast_type(handle, Type::Error);
-            return Type::Error;
-        }*/
 
         let result_type = if node.1.is_comparison_op() {
             Type::Bool
