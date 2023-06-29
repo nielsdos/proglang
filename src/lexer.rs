@@ -38,6 +38,8 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
         just("==").to(Token::DoubleEqual),
         just("!=").to(Token::NotEqual),
         just("//").to(Token::DoubleSlash),
+        just("<=").to(Token::LessThanEqual),
+        just(">=").to(Token::GreaterThanEqual),
     ));
 
     let compound_assignment = choice((
@@ -50,7 +52,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
         just("//=").to(Token::DoubleSlashEqual),
     ));
 
-    let single_operator = one_of("+-*/%=").map(Token::Operator);
+    let single_operator = one_of("+-*/%=<>").map(Token::Operator);
 
     let parens = choice((just('(').to(Token::LeftParen), just(')').to(Token::RightParen)));
 

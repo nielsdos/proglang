@@ -84,7 +84,15 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
         );
 
         let comparison_operation = addition_or_subtraction.clone().foldl(
-            just(Token::DoubleEqual).to(BinaryOperationKind::Equality).then(addition_or_subtraction).repeated(),
+            choice((
+                just(Token::Operator('<')).to(BinaryOperationKind::LessThan),
+                just(Token::Operator('>')).to(BinaryOperationKind::GreaterThan),
+                just(Token::DoubleEqual).to(BinaryOperationKind::Equal),
+                just(Token::NotEqual).to(BinaryOperationKind::NotEqual),
+                just(Token::LessThanEqual).to(BinaryOperationKind::LessThanEqual),
+                just(Token::GreaterThanEqual).to(BinaryOperationKind::GreaterThanEqual),
+            ))
+            .then(addition_or_subtraction).repeated(),
             map_binary_operation,
         );
 

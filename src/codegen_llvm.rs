@@ -194,39 +194,40 @@ impl<'ctx> CodeGenInner<'ctx> {
                 let rhs_value = self.emit_implicit_cast_if_necessary(rhs.0.as_handle(), rhs_value, function_context, codegen);
                 // TODO: overflow handling, check NaN handling
 
-                match *operation {
-                    BinaryOperationKind::Equality => {
-                        if lhs_value.is_float_value() {
-                            Some(
-                                function_context
-                                    .builder
-                                    .build_float_compare(inkwell::FloatPredicate::UEQ, lhs_value.into_float_value(), rhs_value.into_float_value(), "eq")
-                                    .into(),
-                            )
-                        } else {
-                            Some(
-                                function_context
-                                    .builder
-                                    .build_int_compare(inkwell::IntPredicate::EQ, lhs_value.into_int_value(), rhs_value.into_int_value(), "eq")
-                                    .into(),
-                            )
-                        }
+                if operation.is_comparison_op() {
+                    if lhs_value.is_float_value() {
+                        Some(
+                            function_context
+                                .builder
+                                .build_float_compare(operation.to_llvm_float_comparison(), lhs_value.into_float_value(), rhs_value.into_float_value(), "eq")
+                                .into(),
+                        )
+                    } else {
+                        Some(
+                            function_context
+                                .builder
+                                .build_int_compare(operation.to_llvm_int_comparison(), lhs_value.into_int_value(), rhs_value.into_int_value(), "eq")
+                                .into(),
+                        )
                     }
-                    BinaryOperationKind::Addition => {
-                        if lhs_value.is_float_value() {
-                            Some(function_context.builder.build_float_add(lhs_value.into_float_value(), rhs_value.into_float_value(), "add").into())
-                        } else {
-                            Some(function_context.builder.build_int_add(lhs_value.into_int_value(), rhs_value.into_int_value(), "add").into())
+                } else {
+                    match *operation {
+                        BinaryOperationKind::Addition => {
+                            if lhs_value.is_float_value() {
+                                Some(function_context.builder.build_float_add(lhs_value.into_float_value(), rhs_value.into_float_value(), "add").into())
+                            } else {
+                                Some(function_context.builder.build_int_add(lhs_value.into_int_value(), rhs_value.into_int_value(), "add").into())
+                            }
                         }
-                    }
-                    BinaryOperationKind::Subtraction => {
-                        if lhs_value.is_float_value() {
-                            Some(function_context.builder.build_float_sub(lhs_value.into_float_value(), rhs_value.into_float_value(), "sub").into())
-                        } else {
-                            Some(function_context.builder.build_int_sub(lhs_value.into_int_value(), rhs_value.into_int_value(), "sub").into())
+                        BinaryOperationKind::Subtraction => {
+                            if lhs_value.is_float_value() {
+                                Some(function_context.builder.build_float_sub(lhs_value.into_float_value(), rhs_value.into_float_value(), "sub").into())
+                            } else {
+                                Some(function_context.builder.build_int_sub(lhs_value.into_int_value(), rhs_value.into_int_value(), "sub").into())
+                            }
                         }
+                        _ => unimplemented!(),
                     }
-                    _ => unimplemented!(),
                 }
             }
             Ast::IfStatement(IfStatement { condition, statements }) => {
@@ -278,5 +279,31 @@ impl<'ctx> CodeGenInner<'ctx> {
 impl<'f, 'ctx> CodeGenFunctionContext<'f, 'ctx> {
     pub fn is_bb_unterminated(&self) -> bool {
         self.builder.get_insert_block().expect("should have insert block").get_terminator().is_none()
+    }
+}
+
+impl BinaryOperationKind {
+    pub fn to_llvm_int_comparison(&self) -> inkwell::IntPredicate {
+        match self {
+            BinaryOperationKind::Equal => inkwell::IntPredicate::EQ,
+            BinaryOperationKind::NotEqual => inkwell::IntPredicate::NE,
+            BinaryOperationKind::LessThan => inkwell::IntPredicate::SLT,
+            BinaryOperationKind::LessThanEqual => inkwell::IntPredicate::SLE,
+            BinaryOperationKind::GreaterThan => inkwell::IntPredicate::SGT,
+            BinaryOperationKind::GreaterThanEqual => inkwell::IntPredicate::SGE,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn to_llvm_float_comparison(&self) -> inkwell::FloatPredicate {
+        match self {
+            BinaryOperationKind::Equal => inkwell::FloatPredicate::UEQ,
+            BinaryOperationKind::NotEqual => inkwell::FloatPredicate::UNE,
+            BinaryOperationKind::LessThan => inkwell::FloatPredicate::ULT,
+            BinaryOperationKind::LessThanEqual => inkwell::FloatPredicate::ULE,
+            BinaryOperationKind::GreaterThan => inkwell::FloatPredicate::UGT,
+            BinaryOperationKind::GreaterThanEqual => inkwell::FloatPredicate::UGE,
+            _ => unreachable!(),
+        }
     }
 }

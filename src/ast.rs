@@ -8,13 +8,32 @@ pub enum BinaryOperationKind {
     DoubleDivision,
     IntDivision,
     Power,
-    Equality,
+    Equal,
+    NotEqual,
+    LessThan,
+    GreaterThan,
+    LessThanEqual,
+    GreaterThanEqual,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UnaryOperationKind {
     Plus,
     Minus,
+}
+
+impl BinaryOperationKind {
+    pub fn is_comparison_op(&self) -> bool {
+        matches!(
+            self,
+            BinaryOperationKind::Equal
+                | BinaryOperationKind::NotEqual
+                | BinaryOperationKind::LessThan
+                | BinaryOperationKind::GreaterThan
+                | BinaryOperationKind::LessThanEqual
+                | BinaryOperationKind::GreaterThanEqual
+        )
+    }
 }
 
 impl UnaryOperationKind {

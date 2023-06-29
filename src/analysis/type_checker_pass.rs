@@ -1,6 +1,6 @@
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::types::{SemanticErrorList, UniqueFunctionIdentifier};
-use crate::ast::{Assignment, AstHandle, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, StatementList, UnaryOperation};
+use crate::ast::{Assignment, AstHandle, BinaryOperation, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, StatementList, UnaryOperation};
 use crate::function_info::FunctionInfo;
 use crate::span::Span;
 use crate::type_system::{ImplicitCast, Type};
@@ -100,9 +100,10 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             return Type::Error;
         }*/
 
-        let result_type = match node.1 {
-            BinaryOperationKind::Equality => Type::Bool,
-            _ => target_type,
+        let result_type = if node.1.is_comparison_op() {
+            Type::Bool
+        } else {
+            target_type
         };
         self.store_ast_type(handle, result_type);
         result_type

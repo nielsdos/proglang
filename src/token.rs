@@ -20,6 +20,8 @@ pub enum Token<'src> {
     RightParen,
     DoubleStar,
     DoubleEqual,
+    LessThanEqual,
+    GreaterThanEqual,
     NotEqual,
     DoubleSlash,
     PlusEqual,
@@ -59,6 +61,8 @@ impl<'src> Display for Token<'src> {
             Token::RightParen => write!(f, ")"),
             Token::DoubleStar => write!(f, "**"),
             Token::DoubleEqual => write!(f, "=="),
+            Token::LessThanEqual => write!(f, "<="),
+            Token::GreaterThanEqual => write!(f, ">="),
             Token::NotEqual => write!(f, "!="),
             Token::DoubleSlash => write!(f, "//"),
             Token::PlusEqual => write!(f, "+="),
@@ -81,6 +85,7 @@ impl<'src> Display for Token<'src> {
             Token::Class => write!(f, "class"),
             Token::Interface => write!(f, "interface"),
             Token::Import => write!(f, "import"),
+            // TODO: make sure there's no quotes around these in the error reporting
             Token::BlockStart => write!(f, "start of block"),
             Token::BlockEnd => write!(f, "end of block"),
         }
