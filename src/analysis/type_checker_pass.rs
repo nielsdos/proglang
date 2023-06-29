@@ -70,6 +70,8 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         let lhs_type = self.visit(&node.0);
         let rhs_type = self.visit(&node.2);
 
+        // TODO: handle error type
+
         let target_type = if lhs_type == Type::Double || rhs_type == Type::Double { Type::Double } else { Type::Int };
 
         let compute_target_type = |input_type: &Type| -> ImplicitCast {
@@ -114,7 +116,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         if !rhs_type.is_numeric() {
             // Try to implicitly cast it
             return if rhs_type == Type::Bool {
-                self.implicit_cast_table.insert(handle, ImplicitCast::IntZext);
+                self.implicit_cast_table.insert(node.1.0.as_handle(), ImplicitCast::IntZext);
                 self.store_ast_type(handle, Type::Int);
                 Type::Int
             } else {
@@ -156,8 +158,18 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
 
     fn visit_if_statement(&mut self, _: AstHandle, node: &'ast IfStatement<'ast>, _: Span) -> Type {
         let condition_type = self.visit(&node.condition);
-        println!("condition type: {:?}", condition_type);
-        // TODO: check condition type
+        if condition_type.is_error() {
+            return Type::Error;
+        }
+        match condition_type {
+            Type::Int => {
+                self.implicit_cast_table.insert(node.condition.0.as_handle(), ImplicitCast::IntToBool);
+            },
+            Type::Double => {
+                self.implicit_cast_table.insert(node.condition.0.as_handle(), ImplicitCast::DoubleToBool);
+            },
+            _ => {},
+        }
         self.visit(&node.statements);
         Type::Void
     }

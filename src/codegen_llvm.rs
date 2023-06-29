@@ -151,6 +151,14 @@ impl<'ctx> CodeGenInner<'ctx> {
                     .builder
                     .build_signed_int_to_float(value.into_int_value(), codegen.type_to_llvm_type[&Type::Double].into_float_type(), "double")
                     .as_basic_value_enum(),
+                ImplicitCast::IntToBool => function_context
+                    .builder
+                    .build_int_compare(inkwell::IntPredicate::NE, value.into_int_value(), codegen.type_to_llvm_type[&Type::Int].into_int_type().const_int(0, false), "int_to_bool")
+                    .as_basic_value_enum(),
+                ImplicitCast::DoubleToBool => function_context
+                    .builder
+                    .build_float_compare(inkwell::FloatPredicate::UNE, value.into_float_value(), codegen.type_to_llvm_type[&Type::Double].into_float_type().const_float(0.0), "double_to_bool")
+                    .as_basic_value_enum(),
             }
         } else {
             value
@@ -166,7 +174,7 @@ impl<'ctx> CodeGenInner<'ctx> {
             }
             Ast::UnaryOperation(UnaryOperation(operation, operand)) => {
                 let operand_value = self.emit_instructions(operand, function_context, codegen).expect("operand should have a value");
-                let operand_value = self.emit_implicit_cast_if_necessary(ast.0.as_handle(), operand_value, function_context, codegen);
+                let operand_value = self.emit_implicit_cast_if_necessary(operand.0.as_handle(), operand_value, function_context, codegen);
                 match operation {
                     UnaryOperationKind::Minus => {
                         if operand_value.is_int_value() {
@@ -232,6 +240,7 @@ impl<'ctx> CodeGenInner<'ctx> {
             }
             Ast::IfStatement(IfStatement { condition, statements }) => {
                 let condition_value = self.emit_instructions(condition, function_context, codegen).expect("condition should have a value");
+                let condition_value = self.emit_implicit_cast_if_necessary(condition.0.as_handle(), condition_value, function_context, codegen);
 
                 let then_block = codegen.context.0.append_basic_block(function_context.function_value, "then");
                 let else_block = codegen.context.0.append_basic_block(function_context.function_value, "after_if");

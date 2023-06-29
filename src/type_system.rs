@@ -14,6 +14,8 @@ pub enum ImplicitCast {
     UnsignedIntToDouble,
     SignedIntToDouble,
     IntZext,
+    IntToBool,
+    DoubleToBool,
 }
 
 impl Display for Type {
