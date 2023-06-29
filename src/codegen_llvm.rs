@@ -143,7 +143,11 @@ impl<'ctx> CodeGenInner<'ctx> {
                     .builder
                     .build_int_z_extend(value.into_int_value(), codegen.type_to_llvm_type[&Type::Int].into_int_type(), "zext")
                     .as_basic_value_enum(),
-                ImplicitCast::IntToDouble => function_context
+                ImplicitCast::UnsignedIntToDouble => function_context
+                    .builder
+                    .build_unsigned_int_to_float(value.into_int_value(), codegen.type_to_llvm_type[&Type::Double].into_float_type(), "double")
+                    .as_basic_value_enum(),
+                ImplicitCast::SignedIntToDouble => function_context
                     .builder
                     .build_signed_int_to_float(value.into_int_value(), codegen.type_to_llvm_type[&Type::Double].into_float_type(), "double")
                     .as_basic_value_enum(),
@@ -154,7 +158,6 @@ impl<'ctx> CodeGenInner<'ctx> {
     }
 
     fn emit_instructions<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ast, 'ctx>, codegen: &CodeGenLLVM<'ctx>) -> Option<BasicValueEnum<'ctx>> {
-        println!("Visit {:?}", ast.0);
         match &ast.0 {
             Ast::Identifier(Identifier(name)) => {
                 let variable = function_context.variables.get(name).expect("variable should exist");
@@ -186,21 +189,44 @@ impl<'ctx> CodeGenInner<'ctx> {
             }
             Ast::BinaryOperation(BinaryOperation(lhs, operation, rhs)) => {
                 let lhs_value = self.emit_instructions(lhs, function_context, codegen).expect("lhs should have a value");
+                let lhs_value = self.emit_implicit_cast_if_necessary(lhs.0.as_handle(), lhs_value, function_context, codegen);
                 let rhs_value = self.emit_instructions(rhs, function_context, codegen).expect("rhs should have a value");
-                if *operation == BinaryOperationKind::Equality {
-                    // TODO: support floats
-                    let result = function_context
-                        .builder
-                        .build_int_compare(inkwell::IntPredicate::EQ, lhs_value.into_int_value(), rhs_value.into_int_value(), "eq");
-                    Some(result.into())
-                } else if *operation == BinaryOperationKind::Addition {
-                    // TODO: support floats
-                    // TODO: UB?
-                    let result = function_context.builder.build_int_add(lhs_value.into_int_value(), rhs_value.into_int_value(), "add");
-                    Some(result.into())
-                } else {
-                    // TODO
-                    None
+                let rhs_value = self.emit_implicit_cast_if_necessary(rhs.0.as_handle(), rhs_value, function_context, codegen);
+                // TODO: overflow handling, check NaN handling
+
+                match *operation {
+                    BinaryOperationKind::Equality => {
+                        if lhs_value.is_float_value() {
+                            Some(
+                                function_context
+                                    .builder
+                                    .build_float_compare(inkwell::FloatPredicate::UEQ, lhs_value.into_float_value(), rhs_value.into_float_value(), "eq")
+                                    .into(),
+                            )
+                        } else {
+                            Some(
+                                function_context
+                                    .builder
+                                    .build_int_compare(inkwell::IntPredicate::EQ, lhs_value.into_int_value(), rhs_value.into_int_value(), "eq")
+                                    .into(),
+                            )
+                        }
+                    }
+                    BinaryOperationKind::Addition => {
+                        if lhs_value.is_float_value() {
+                            Some(function_context.builder.build_float_add(lhs_value.into_float_value(), rhs_value.into_float_value(), "add").into())
+                        } else {
+                            Some(function_context.builder.build_int_add(lhs_value.into_int_value(), rhs_value.into_int_value(), "add").into())
+                        }
+                    }
+                    BinaryOperationKind::Subtraction => {
+                        if lhs_value.is_float_value() {
+                            Some(function_context.builder.build_float_sub(lhs_value.into_float_value(), rhs_value.into_float_value(), "sub").into())
+                        } else {
+                            Some(function_context.builder.build_int_sub(lhs_value.into_int_value(), rhs_value.into_int_value(), "sub").into())
+                        }
+                    }
+                    _ => unimplemented!(),
                 }
             }
             Ast::IfStatement(IfStatement { condition, statements }) => {

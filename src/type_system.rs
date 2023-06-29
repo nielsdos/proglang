@@ -11,7 +11,8 @@ pub enum Type {
 }
 
 pub enum ImplicitCast {
-    IntToDouble,
+    UnsignedIntToDouble,
+    SignedIntToDouble,
     IntZext,
 }
 

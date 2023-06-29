@@ -66,25 +66,43 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         }
     }
 
-    fn visit_binary_operation(&mut self, handle: AstHandle, node: &'ast BinaryOperation<'ast>, span: Span) -> Type {
+    fn visit_binary_operation(&mut self, handle: AstHandle, node: &'ast BinaryOperation<'ast>, _: Span) -> Type {
         let lhs_type = self.visit(&node.0);
         let rhs_type = self.visit(&node.2);
 
-        // TODO: we should amend the tree for numeric-like types
+        let target_type = if lhs_type == Type::Double || rhs_type == Type::Double { Type::Double } else { Type::Int };
 
-        if lhs_type != rhs_type {
+        let compute_target_type = |input_type: &Type| -> ImplicitCast {
+            if target_type == Type::Double {
+                if input_type == &Type::Bool {
+                    ImplicitCast::UnsignedIntToDouble
+                } else {
+                    ImplicitCast::SignedIntToDouble
+                }
+            } else {
+                ImplicitCast::IntZext
+            }
+        };
+
+        if lhs_type != target_type {
+            self.implicit_cast_table.insert(node.0 .0.as_handle(), compute_target_type(&lhs_type));
+        }
+        if rhs_type != target_type {
+            self.implicit_cast_table.insert(node.2 .0.as_handle(), compute_target_type(&rhs_type));
+        }
+
+        /*        if lhs_type != rhs_type {
             if !lhs_type.is_error() && !rhs_type.is_error() {
                 self.semantic_error_list
                     .report_error(span, format!("types in binary operation don't match, found '{}' and '{}'", lhs_type, rhs_type));
             }
             self.store_ast_type(handle, Type::Error);
             return Type::Error;
-        }
+        }*/
 
         let result_type = match node.1 {
             BinaryOperationKind::Equality => Type::Bool,
-            BinaryOperationKind::Addition | BinaryOperationKind::Subtraction => lhs_type,
-            _ => Type::Error,
+            _ => target_type,
         };
         self.store_ast_type(handle, result_type);
         result_type
