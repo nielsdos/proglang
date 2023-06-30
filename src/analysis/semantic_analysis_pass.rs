@@ -1,4 +1,4 @@
-use crate::ast::{Assignment, Ast, AstHandle, BinaryOperation, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, StatementList, UnaryOperation};
+use crate::ast::{Assignment, Ast, AstHandle, BinaryOperation, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, ReturnStatement, StatementList, UnaryOperation};
 use crate::span::{Span, Spanned};
 
 pub trait SemanticAnalysisPass<'ast, T: Default> {
@@ -15,6 +15,7 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
             Ast::StatementList(inner) => self.visit_statement_list(handle, inner, node.1),
             Ast::FunctionDeclaration(inner) => self.visit_function_declaration(handle, inner, node.1),
             Ast::IfStatement(inner) => self.visit_if_statement(handle, inner, node.1),
+            Ast::ReturnStatement(inner) => self.visit_return_statement(handle, inner, node.1),
             Ast::Todo => todo!(),
         }
     }
@@ -66,6 +67,13 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
     fn visit_if_statement(&mut self, _: AstHandle, node: &'ast IfStatement<'ast>, _: Span) -> T {
         self.visit(&node.condition);
         self.visit(&node.statements);
+        T::default()
+    }
+
+    fn visit_return_statement(&mut self, _: AstHandle, node: &'ast ReturnStatement<'ast>, _: Span) -> T {
+        if let Some(value) = &node.value {
+            self.visit(value);
+        }
         T::default()
     }
 }

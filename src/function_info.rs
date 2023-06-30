@@ -16,7 +16,11 @@ pub enum VariableUpdateError {
 
 impl<'ast> FunctionInfo<'ast> {
     pub fn new(body: &'ast Spanned<Ast<'ast>>, return_type: Type) -> Self {
-        Self { body, variable_types: HashMap::new(), return_type }
+        Self {
+            body,
+            variable_types: HashMap::new(),
+            return_type,
+        }
     }
 
     pub fn query_variable_type(&self, identifier: &'ast str) -> Option<&Type> {

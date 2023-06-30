@@ -73,6 +73,10 @@ pub struct IfStatement<'src> {
     pub condition: Box<Spanned<Ast<'src>>>,
     pub statements: Box<Spanned<Ast<'src>>>,
 }
+#[derive(Debug)]
+pub struct ReturnStatement<'src> {
+    pub value: Option<Box<Spanned<Ast<'src>>>>,
+}
 
 #[derive(Debug)]
 pub enum Ast<'src> {
@@ -86,6 +90,7 @@ pub enum Ast<'src> {
     StatementList(StatementList<'src>),
     FunctionDeclaration(FunctionDeclaration<'src>),
     IfStatement(IfStatement<'src>),
+    ReturnStatement(ReturnStatement<'src>),
     /// Placeholder, useful for development purposes.
     Todo,
 }

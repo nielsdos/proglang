@@ -1,6 +1,8 @@
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::types::{SemanticErrorList, UniqueFunctionIdentifier};
-use crate::ast::{Assignment, AstHandle, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, StatementList, UnaryOperation};
+use crate::ast::{
+    Assignment, AstHandle, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
+};
 use crate::function_info::{FunctionInfo, VariableUpdateError};
 use crate::span::Span;
 use crate::type_system::{ImplicitCast, Type};
@@ -76,14 +78,10 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             return Type::Error;
         }
 
-        let target_type = if lhs_type == Type::Double || rhs_type == Type::Double {
+        let target_type = if lhs_type == Type::Double || rhs_type == Type::Double || node.1 == BinaryOperationKind::DoubleDivision {
             Type::Double
         } else {
-            if node.1 == BinaryOperationKind::DoubleDivision {
-                Type::Double
-            } else {
-                Type::Int
-            }
+            Type::Int
         };
 
         let compute_target_type = |input_type: &Type| -> ImplicitCast {
@@ -180,6 +178,33 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             _ => {}
         }
         self.visit(&node.statements);
+        Type::Void
+    }
+
+    fn visit_return_statement(&mut self, _: AstHandle, node: &'ast ReturnStatement<'ast>, span: Span) -> Type {
+        // TODO: warn on dead statements
+        // TODO: all paths must return
+        // TODO: implicit casts?
+        let current_function = self.current_function_scope().expect("must be in function context");
+        let function_return_type = current_function.return_type();
+        let function_name = self.current_function.as_ref().unwrap().0;
+        if let Some(value) = &node.value {
+            let returned_type = self.visit(value);
+            if returned_type != function_return_type {
+                self.semantic_error_list.report_error(
+                    span,
+                    format!(
+                        "function '{}' must return a value of type '{}', but this returns a value of type '{}'",
+                        function_name, function_return_type, returned_type,
+                    ),
+                );
+            }
+        } else if function_return_type != Type::Void {
+            self.semantic_error_list.report_error(
+                span,
+                format!("function '{}' must return a value of type '{}', but this returns nothing", function_name, function_return_type),
+            );
+        }
         Type::Void
     }
 }

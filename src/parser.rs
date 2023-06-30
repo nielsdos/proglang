@@ -1,18 +1,19 @@
 // Based on the sample code from https://github.com/zesterer/chumsky/blob/main/examples/nano_rust.rs
 
 use crate::ast::{
-    Assignment, Ast, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, StatementList, UnaryOperation, UnaryOperationKind,
+    Assignment, Ast, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
+    UnaryOperationKind,
 };
 use crate::lexer::lexer;
 use crate::span::{Span, Spanned};
 use crate::token::{Token, TokenTree};
+use crate::type_system::Type;
 use ariadne::{sources, Color, Label, Report, ReportKind};
 use chumsky::input::{BoxedStream, SpannedInput, Stream};
 use chumsky::prelude::*;
 use std::collections::VecDeque;
 use std::iter;
 use std::rc::Rc;
-use crate::type_system::Type;
 
 pub struct ParserOptions {
     pub dump_token_tree: bool,
@@ -132,7 +133,13 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
             .map_with_span(|(ident, expr), span: Span| (ident, expr, span))
             .map(|(ident, expr, span)| (Ast::Assignment(Assignment(ident, Box::new(expr))), span));
 
-        let statement = choice((assignment, if_check));
+        let return_ = just(Token::Return)
+            .ignore_then(parse_expression().or_not())
+            .map_with_span(|expression, span| (expression, span))
+            .then_ignore(just(Token::StatementEnd))
+            .map(|(expression, span)| (Ast::ReturnStatement(ReturnStatement { value: expression.map(Box::new) }), span));
+
+        let statement = choice((assignment, if_check, return_));
 
         statement.repeated().at_least(1).collect::<Vec<_>>().map(|list| {
             let span = if list.is_empty() {
@@ -151,7 +158,7 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
     };
 
     // TODO: move this out & complete this
-    let ty = identifier.clone().map(|ident| {
+    let ty = identifier.map(|ident| {
         println!("ident {}", ident);
         Type::Double
     });
@@ -160,10 +167,9 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
     just(Token::Fn)
         .map_with_span(|_, span: Span| span)
         .then(identifier)
-        .then_ignore(just(Token::LeftParen)
-            .then(just(Token::RightParen)))
-            .then(return_type.or_not())
-            .then_ignore(just(Token::BlockStart))
+        .then_ignore(just(Token::LeftParen).then(just(Token::RightParen)))
+        .then(return_type.or_not())
+        .then_ignore(just(Token::BlockStart))
         .then(parse_statement_list())
         .then_ignore(just(Token::BlockEnd))
         .map(|(((fn_span, fn_name), return_type), statements)| {

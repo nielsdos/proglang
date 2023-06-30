@@ -6,6 +6,7 @@ fn test() -> double:
     three=3.0
     a = 5.0//two
     b = 5.0//three
+    return -a
 
 
 

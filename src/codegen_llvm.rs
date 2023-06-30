@@ -1,22 +1,23 @@
 use crate::analysis::semantic_analysis::SemanticAnalyser;
 use crate::analysis::types::UniqueFunctionIdentifier;
 use crate::ast::{
-    Assignment, Ast, AstHandle, BinaryOperation, BinaryOperationKind, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, StatementList, UnaryOperation, UnaryOperationKind,
+    Assignment, Ast, AstHandle, BinaryOperation, BinaryOperationKind, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
+    UnaryOperationKind,
 };
 use crate::function_info::FunctionInfo;
 use crate::span::Spanned;
 use crate::type_system::{ImplicitCast, Type};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
+use inkwell::intrinsics::Intrinsic;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
+use inkwell::targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple};
 use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FloatType, IntType, VoidType};
 use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue};
+use inkwell::OptimizationLevel;
 use std::collections::HashMap;
 use std::path::Path;
-use inkwell::intrinsics::Intrinsic;
-use inkwell::OptimizationLevel;
-use inkwell::targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple};
 
 pub struct CodeGenContext(Context);
 
@@ -160,10 +161,7 @@ impl<'ctx> CodeGenInner<'ctx> {
     ) -> BasicValueEnum<'ctx> {
         if let Some(implicit_cast_entry) = self.semantic_analyser.implicit_cast_entry(handle) {
             match implicit_cast_entry {
-                ImplicitCast::IntZext => function_context
-                    .builder
-                    .build_int_z_extend(value.into_int_value(), codegen.int_type, "zext")
-                    .as_basic_value_enum(),
+                ImplicitCast::IntZext => function_context.builder.build_int_z_extend(value.into_int_value(), codegen.int_type, "zext").as_basic_value_enum(),
                 ImplicitCast::UnsignedIntToDouble => function_context
                     .builder
                     .build_unsigned_int_to_float(value.into_int_value(), codegen.double_type, "double")
@@ -174,21 +172,11 @@ impl<'ctx> CodeGenInner<'ctx> {
                     .as_basic_value_enum(),
                 ImplicitCast::IntToBool => function_context
                     .builder
-                    .build_int_compare(
-                        inkwell::IntPredicate::NE,
-                        value.into_int_value(),
-                        codegen.int_type.const_int(0, false),
-                        "int_to_bool",
-                    )
+                    .build_int_compare(inkwell::IntPredicate::NE, value.into_int_value(), codegen.int_type.const_int(0, false), "int_to_bool")
                     .as_basic_value_enum(),
                 ImplicitCast::DoubleToBool => function_context
                     .builder
-                    .build_float_compare(
-                        inkwell::FloatPredicate::UNE,
-                        value.into_float_value(),
-                        codegen.double_type.const_float(0.0),
-                        "double_to_bool",
-                    )
+                    .build_float_compare(inkwell::FloatPredicate::UNE, value.into_float_value(), codegen.double_type.const_float(0.0), "double_to_bool")
                     .as_basic_value_enum(),
             }
         } else {
@@ -284,10 +272,14 @@ impl<'ctx> CodeGenInner<'ctx> {
                                 let floor_intrinsic = Intrinsic::find("llvm.floor").expect("floor intrinsic should exist");
                                 let floor_function = floor_intrinsic.get_declaration(&self.module, &[lhs_value.get_type()]).expect("floor function should exist");
                                 //let floor_result = function_context.builder.build_float_trunc(div_result, codegen.int_type, "trunc");
-                                let floor_result = function_context.builder.build_call(floor_function, &[div_result.into()], "floor").try_as_basic_value().expect_left("value should exist");
-                                Some(floor_result.into())
+                                let floor_result = function_context
+                                    .builder
+                                    .build_call(floor_function, &[div_result.into()], "floor")
+                                    .try_as_basic_value()
+                                    .expect_left("value should exist");
+                                Some(floor_result)
                             } else {
-                                // TODO: -2//3
+                                // TODO: -2//3 case etc
                                 Some(function_context.builder.build_int_signed_div(lhs_value.into_int_value(), rhs_value.into_int_value(), "div").into())
                             }
                         }
@@ -317,19 +309,22 @@ impl<'ctx> CodeGenInner<'ctx> {
 
                 None
             }
-            Ast::LiteralInt(LiteralInt(value)) => {
-                Some(codegen.int_type.const_int(*value as u64, false).into())
-            }
-            Ast::LiteralBool(LiteralBool(bool)) => {
-                Some(codegen.bool_type.const_int(if *bool { 1 } else { 0 }, false).into())
-            }
-            Ast::LiteralDouble(LiteralDouble(value)) => {
-                Some(codegen.double_type.const_float(*value).into())
-            }
+            Ast::LiteralInt(LiteralInt(value)) => Some(codegen.int_type.const_int(*value as u64, false).into()),
+            Ast::LiteralBool(LiteralBool(bool)) => Some(codegen.bool_type.const_int(if *bool { 1 } else { 0 }, false).into()),
+            Ast::LiteralDouble(LiteralDouble(value)) => Some(codegen.double_type.const_float(*value).into()),
             Ast::Assignment(Assignment(name, expression)) => {
                 let variable = function_context.variables.get(name).expect("variable should exist");
                 let expression_value = self.emit_instructions(expression, function_context, codegen).expect("expression should have a value");
                 function_context.builder.build_store(variable.ptr, expression_value);
+                None
+            }
+            Ast::ReturnStatement(ReturnStatement { value }) => {
+                if let Some(value) = value {
+                    let expression_value = self.emit_instructions(value, function_context, codegen).expect("expression should have a value");
+                    function_context.builder.build_return(Some(&expression_value));
+                } else {
+                    function_context.builder.build_return(None);
+                }
                 None
             }
             _ => None,
@@ -342,7 +337,9 @@ impl<'ctx> CodeGenInner<'ctx> {
         Target::initialize_x86(&InitializationConfig::default());
         let target_triple = TargetTriple::create("x86_64-unknown-linux-gnu");
         let target = Target::from_triple(&target_triple).expect("target should exist");
-        let target_machine = target.create_target_machine(&target_triple, "generic", "", OptimizationLevel::None, RelocMode::Default, CodeModel::Default).expect("target machine should exist");
+        let target_machine = target
+            .create_target_machine(&target_triple, "generic", "", OptimizationLevel::None, RelocMode::Default, CodeModel::Default)
+            .expect("target machine should exist");
         target_machine.write_to_file(&self.module, FileType::Assembly, Path::new("output.s")).expect("should write to file");
     }
 }
