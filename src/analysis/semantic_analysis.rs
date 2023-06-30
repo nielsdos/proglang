@@ -31,7 +31,7 @@ impl<'ast> SemanticAnalyser<'ast> {
         let mut semantic_error_list = SemanticErrorList::default();
 
         self.function_map = {
-            let mut function_collector = FunctionCollectorPass { function_map: Default::default() };
+            let mut function_collector = FunctionCollectorPass { function_map: Default::default(), semantic_error_list: &mut semantic_error_list };
             function_collector.visit(self.ast);
             function_collector.function_map
         };
