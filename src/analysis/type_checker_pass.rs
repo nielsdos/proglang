@@ -161,9 +161,9 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
                     // TODO: relax to warning? take into account codegen then: we may not generate instructions after a terminator!
                     self.semantic_error_list.report_error_with_note(
                         span,
-                        "this statement, and any following statements in this block, are unreachable".to_string(),
+                        "therefore, this statement and any following statements in this block, are unreachable".to_string(),
                         (*last_return_span).into(),
-                        "this statement is the last statement in this block".to_string(),
+                        "this is the last executed statement in this block".to_string(),
                     );
                     has_warned_about_return = true;
                 }
