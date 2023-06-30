@@ -162,11 +162,12 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
     };
 
     // TODO: move this out & complete this
-    let ty = identifier.map(|ident| {
-        println!("ident {}", ident);
-        Type::Double
-    });
-    let return_type = just(Token::Arrow).ignore_then(ty);
+    let ty_name = select! {
+        Token::Identifier("double") => Type::Double,
+        Token::Identifier("int") => Type::Int,
+        Token::Identifier("bool") => Type::Bool,
+    };
+    let return_type = just(Token::Arrow).ignore_then(ty_name);
 
     just(Token::Fn)
         .map_with_span(|_, span: Span| span)

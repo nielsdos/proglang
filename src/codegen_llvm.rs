@@ -15,7 +15,7 @@ use inkwell::passes::PassManager;
 use inkwell::targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple};
 use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FloatType, IntType, VoidType};
 use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue};
-use inkwell::OptimizationLevel;
+use inkwell::{IntPredicate, OptimizationLevel};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -320,7 +320,6 @@ impl<'ctx> CodeGenInner<'ctx> {
                                 let div_result = function_context.builder.build_float_div(lhs_value.into_float_value(), rhs_value.into_float_value(), "div");
                                 let floor_intrinsic = Intrinsic::find("llvm.floor").expect("floor intrinsic should exist");
                                 let floor_function = floor_intrinsic.get_declaration(&self.module, &[lhs_value.get_type()]).expect("floor function should exist");
-                                //let floor_result = function_context.builder.build_float_trunc(div_result, codegen.int_type, "trunc");
                                 let floor_result = function_context
                                     .builder
                                     .build_call(floor_function, &[div_result.into()], "floor")
@@ -328,8 +327,18 @@ impl<'ctx> CodeGenInner<'ctx> {
                                     .expect_left("value should exist");
                                 Some(floor_result)
                             } else {
-                                // TODO: -2//3 case etc
-                                Some(function_context.builder.build_int_signed_div(lhs_value.into_int_value(), rhs_value.into_int_value(), "div").into())
+                                let lhs_value = lhs_value.into_int_value();
+                                let rhs_value = rhs_value.into_int_value();
+                                let sign_lhs = function_context.builder.build_and(lhs_value, codegen.int_type.const_int(1 << 63, false), "sign_lhs");
+                                let sign_rhs = function_context.builder.build_and(rhs_value, codegen.int_type.const_int(1 << 63, false), "sign_rhs");
+                                let division = function_context.builder.build_int_signed_div(lhs_value, rhs_value, "div");
+                                let modulo = function_context.builder.build_int_signed_rem(lhs_value, rhs_value, "mod");
+                                let comparison_sign = function_context.builder.build_int_compare(IntPredicate::EQ, sign_lhs, sign_rhs, "sign_cmp");
+                                let comparison_mod = function_context.builder.build_int_compare(IntPredicate::EQ, modulo, codegen.int_type.const_int(0, false), "mod_cmp");
+                                let both_conditions = function_context.builder.build_or(comparison_sign, comparison_mod, "both_cmp");
+                                let different_sign_result = function_context.builder.build_int_sub(division, codegen.int_type.const_int(1, true), "diff_sign_div");
+                                let result = function_context.builder.build_select(both_conditions, division, different_sign_result, "whole_div_int");
+                                Some(result)
                             }
                         }
                         BinaryOperationKind::Power => {
