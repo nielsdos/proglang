@@ -45,6 +45,7 @@ struct CodeGenInner<'ctx> {
 
 pub struct CodeGenLLVM<'ctx> {
     context: &'ctx CodeGenContext,
+    optimization_level: u32,
     semantic_analyser: &'ctx SemanticAnalyser<'ctx>,
     modules: Vec<CodeGenInner<'ctx>>,
     type_to_llvm_type: HashMap<Type, BasicTypeEnum<'ctx>>,
@@ -57,7 +58,7 @@ pub struct CodeGenLLVM<'ctx> {
 }
 
 impl<'ctx> CodeGenLLVM<'ctx> {
-    pub fn new(context: &'ctx CodeGenContext, semantic_analyser: &'ctx SemanticAnalyser) -> Self {
+    pub fn new(context: &'ctx CodeGenContext, semantic_analyser: &'ctx SemanticAnalyser, optimization_level: u32) -> Self {
         let mut type_to_llvm_type: HashMap<Type, BasicTypeEnum<'ctx>> = HashMap::new();
 
         // Store basic types
@@ -70,6 +71,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
 
         Self {
             context,
+            optimization_level,
             semantic_analyser,
             modules: Vec::new(),
             type_to_llvm_type,
@@ -81,14 +83,56 @@ impl<'ctx> CodeGenLLVM<'ctx> {
         }
     }
 
+    fn create_pass_manager(&self) -> PassManager<Module<'ctx>> {
+        let pm = PassManager::create(());
+        if self.optimization_level >= 1 {
+            pm.add_type_based_alias_analysis_pass();
+            pm.add_scoped_no_alias_aa_pass();
+            pm.add_function_attrs_pass();
+            pm.add_ipsccp_pass();
+            pm.add_sccp_pass();
+            pm.add_global_optimizer_pass(); // TODO: is this actually needed?
+            pm.add_basic_alias_analysis_pass();
+            pm.add_promote_memory_to_register_pass();
+            pm.add_dead_arg_elimination_pass();
+            pm.add_cfg_simplification_pass();
+            pm.add_aggressive_dce_pass();
+            pm.add_early_cse_mem_ssa_pass();
+            pm.add_instruction_combining_pass();
+            pm.add_instruction_simplify_pass();
+            pm.add_partially_inline_lib_calls_pass();
+            pm.add_licm_pass();
+            pm.add_loop_deletion_pass();
+            pm.add_loop_rotate_pass();
+            pm.add_memcpy_optimize_pass();
+            pm.add_reassociate_pass();
+            pm.add_scalar_repl_aggregates_pass();
+            pm.add_loop_idiom_pass();
+        }
+        if self.optimization_level >= 2 {
+            pm.add_gvn_pass();
+            pm.add_merged_load_store_motion_pass();
+            pm.add_loop_vectorize_pass();
+            pm.add_constant_merge_pass();
+            pm.add_function_inlining_pass();
+            pm.add_slp_vectorize_pass();
+            pm.add_global_dce_pass();
+            pm.add_tail_call_elimination_pass();
+            pm.add_correlated_value_propagation_pass();
+            pm.add_dead_store_elimination_pass();
+            pm.add_jump_threading_pass();
+        }
+        if self.optimization_level >= 3 {
+            pm.add_aggressive_inst_combiner_pass();
+        }
+        pm
+    }
+
     pub fn add_module(&mut self, module_name: &'ctx str) {
         let module = self.context.0.create_module(module_name);
         let inner = CodeGenInner::new(module, self.semantic_analyser);
         self.modules.push(inner);
-        let pm = PassManager::create(());
-        //pm.add_promote_memory_to_register_pass();
-        // TODO: more passes
-        self.pass_managers.push(pm);
+        self.pass_managers.push(self.create_pass_manager());
     }
 
     pub fn codegen_function(&mut self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo) {
@@ -342,6 +386,7 @@ impl<'ctx> CodeGenInner<'ctx> {
         Target::initialize_x86(&InitializationConfig::default());
         let target_triple = TargetTriple::create("x86_64-unknown-linux-gnu");
         let target = Target::from_triple(&target_triple).expect("target should exist");
+        // TODO: set optimization level
         let target_machine = target
             .create_target_machine(&target_triple, "generic", "", OptimizationLevel::None, RelocMode::Default, CodeModel::Default)
             .expect("target machine should exist");

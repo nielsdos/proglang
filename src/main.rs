@@ -7,6 +7,7 @@ use clap::Parser;
 use clap_derive::Parser;
 use std::process::ExitCode;
 use std::rc::Rc;
+use clap_num::number_range;
 
 pub mod analysis;
 pub mod ast;
@@ -19,9 +20,13 @@ pub mod span;
 pub mod token;
 pub mod type_system;
 
+fn parse_optimization_level(s: &str) -> Result<u32, String> {
+    number_range(s, 0, 3)
+}
+
 #[derive(Parser)]
 struct Args {
-    #[arg(index = 1, required = true, value_name = "filename")]
+    #[arg(required = true, value_name = "filename")]
     filename: String,
 
     #[arg(long, help = "Dumps the AST to standard output")]
@@ -32,6 +37,9 @@ struct Args {
 
     #[arg(long, help = "Generate machine-friendly output")]
     machine_friendly_output: bool,
+
+    #[arg(short, long, required = false, default_value = "2", help = "Optimization level", value_parser = parse_optimization_level)]
+    optimization_level: u32,
 }
 
 fn main() -> ExitCode {
@@ -77,7 +85,7 @@ fn main() -> ExitCode {
 
         if semantic_analyser.errors().is_empty() {
             let codegen_context = CodeGenContext::default();
-            let mut codegen = CodeGen::new(&semantic_analyser, &codegen_context);
+            let mut codegen = CodeGen::new(&semantic_analyser, &codegen_context, args.optimization_level);
             println!();
             codegen.codegen_program();
             codegen.dump();

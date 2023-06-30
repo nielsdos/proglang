@@ -9,10 +9,10 @@ pub struct CodeGen<'c> {
 }
 
 impl<'c> CodeGen<'c> {
-    pub fn new(semantic_analyser: &'c SemanticAnalyser<'c>, codegen_context: &'c CodeGenContext) -> Self {
+    pub fn new(semantic_analyser: &'c SemanticAnalyser<'c>, codegen_context: &'c CodeGenContext, optimization_level: u32) -> Self {
         Self {
             semantic_analyser,
-            llvm_codegen: CodeGenLLVM::new(codegen_context, semantic_analyser),
+            llvm_codegen: CodeGenLLVM::new(codegen_context, semantic_analyser, optimization_level),
         }
     }
 
