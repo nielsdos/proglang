@@ -1,7 +1,7 @@
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::types::{SemanticErrorList, UniqueFunctionIdentifier};
-use crate::ast::{Assignment, AstHandle, BinaryOperation, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, StatementList, UnaryOperation};
-use crate::function_info::FunctionInfo;
+use crate::ast::{Assignment, AstHandle, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, StatementList, UnaryOperation};
+use crate::function_info::{FunctionInfo, VariableUpdateError};
 use crate::span::Span;
 use crate::type_system::{ImplicitCast, Type};
 use std::collections::HashMap;
@@ -60,10 +60,8 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             self.store_ast_type(handle, ty);
             ty
         } else {
-            self.semantic_error_list.report_error(
-                span,
-                format!("the variable '{}' was not found in the current active scope", node.0),
-            );
+            self.semantic_error_list
+                .report_error(span, format!("the variable '{}' was not found in the current active scope", node.0));
             // TODO: probably we need real lexical scoping...
             Type::Error
         }
@@ -78,7 +76,15 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             return Type::Error;
         }
 
-        let target_type = if lhs_type == Type::Double || rhs_type == Type::Double { Type::Double } else { Type::Int };
+        let target_type = if lhs_type == Type::Double || rhs_type == Type::Double {
+            Type::Double
+        } else {
+            if node.1 == BinaryOperationKind::DoubleDivision {
+                Type::Double
+            } else {
+                Type::Int
+            }
+        };
 
         let compute_target_type = |input_type: &Type| -> ImplicitCast {
             if target_type == Type::Double {
@@ -99,11 +105,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             self.implicit_cast_table.insert(node.2 .0.as_handle(), compute_target_type(&rhs_type));
         }
 
-        let result_type = if node.1.is_comparison_op() {
-            Type::Bool
-        } else {
-            target_type
-        };
+        let result_type = if node.1.is_comparison_op() { Type::Bool } else { target_type };
         self.store_ast_type(handle, result_type);
         result_type
     }
@@ -113,7 +115,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         if !rhs_type.is_numeric() {
             // Try to implicitly cast it
             return if rhs_type == Type::Bool {
-                self.implicit_cast_table.insert(node.1.0.as_handle(), ImplicitCast::IntZext);
+                self.implicit_cast_table.insert(node.1 .0.as_handle(), ImplicitCast::IntZext);
                 self.store_ast_type(handle, Type::Int);
                 Type::Int
             } else {
@@ -132,11 +134,21 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         rhs_type
     }
 
-    fn visit_assignment(&mut self, _: AstHandle, node: &'ast Assignment<'ast>, _: Span) -> Type {
+    fn visit_assignment(&mut self, _: AstHandle, node: &'ast Assignment<'ast>, span: Span) -> Type {
         let rhs_type = self.visit(&node.1);
-        self.current_function_scope_mut().expect("must be in function context").update_variable_type(node.0, rhs_type);
-        // TODO: error case??
-        rhs_type
+        match self.current_function_scope_mut().expect("must be in function context").update_variable_type(node.0, rhs_type) {
+            Err(VariableUpdateError::TypeMismatch(old_type)) => {
+                self.semantic_error_list.report_error(
+                    span,
+                    format!(
+                        "the variable '{}' has mismatching types: previously had type '{}', but this assigns a value of type '{}'",
+                        node.0, old_type, rhs_type
+                    ),
+                );
+                Type::Error
+            }
+            Ok(()) => rhs_type,
+        }
     }
 
     fn visit_statement_list(&mut self, _: AstHandle, node: &'ast StatementList<'ast>, _: Span) -> Type {
@@ -161,11 +173,11 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         match condition_type {
             Type::Int => {
                 self.implicit_cast_table.insert(node.condition.0.as_handle(), ImplicitCast::IntToBool);
-            },
+            }
             Type::Double => {
                 self.implicit_cast_table.insert(node.condition.0.as_handle(), ImplicitCast::DoubleToBool);
-            },
-            _ => {},
+            }
+            _ => {}
         }
         self.visit(&node.statements);
         Type::Void

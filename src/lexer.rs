@@ -40,6 +40,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
         just("//").to(Token::DoubleSlash),
         just("<=").to(Token::LessThanEqual),
         just(">=").to(Token::GreaterThanEqual),
+        just("->").to(Token::Arrow),
     ));
 
     let compound_assignment = choice((
@@ -88,7 +89,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
         let tokens_stop = tokens_base
             .clone()
             .collect::<Vec<TokenTree>>()
-            .then(text::newline().to(Token::StatementEnd).map_with_span(|token, span| (token, span)))
+            .then(text::newline().to(Token::StatementEnd).map_with_span(|token, span: Span| (token, Span::new(span.start, span.end - 1))))
             .map(|(mut tree, end_token)| {
                 tree.push(TokenTree::Leaf(end_token));
                 tree

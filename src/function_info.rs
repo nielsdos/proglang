@@ -9,6 +9,10 @@ pub struct FunctionInfo<'ast> {
     variable_types: HashMap<&'ast str, Type>,
 }
 
+pub enum VariableUpdateError {
+    TypeMismatch(Type),
+}
+
 impl<'ast> FunctionInfo<'ast> {
     pub fn new(body: &'ast Spanned<Ast<'ast>>) -> Self {
         Self { body, variable_types: HashMap::new() }
@@ -18,12 +22,16 @@ impl<'ast> FunctionInfo<'ast> {
         self.variable_types.get(identifier)
     }
 
-    pub fn update_variable_type(&mut self, identifier: &'ast str, ty: Type) {
+    pub fn update_variable_type(&mut self, identifier: &'ast str, ty: Type) -> Result<(), VariableUpdateError> {
         let old_type = self.variable_types.insert(identifier, ty);
         if let Some(old_type) = old_type {
-            // TODO: make fallible
-            println!("{} {}", ty, old_type);
-            //assert_eq!(ty, old_type);
+            if ty == old_type {
+                Ok(())
+            } else {
+                Err(VariableUpdateError::TypeMismatch(old_type))
+            }
+        } else {
+            Ok(())
         }
     }
 

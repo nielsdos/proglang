@@ -6,7 +6,7 @@ pub enum BinaryOperationKind {
     Subtraction,
     Product,
     DoubleDivision,
-    IntDivision,
+    WholeDivision,
     Power,
     Equal,
     NotEqual,

@@ -10,7 +10,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
-use inkwell::types::{BasicTypeEnum, VoidType};
+use inkwell::types::{BasicTypeEnum, FloatType, IntType, VoidType};
 use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue};
 use std::collections::HashMap;
 use std::path::Path;
@@ -47,8 +47,12 @@ pub struct CodeGenLLVM<'ctx> {
     semantic_analyser: &'ctx SemanticAnalyser<'ctx>,
     modules: Vec<CodeGenInner<'ctx>>,
     type_to_llvm_type: HashMap<Type, BasicTypeEnum<'ctx>>,
-    void_type: VoidType<'ctx>,
     pass_managers: Vec<PassManager<Module<'ctx>>>,
+    // Primitive types here for faster lookup
+    void_type: VoidType<'ctx>,
+    int_type: IntType<'ctx>,
+    double_type: FloatType<'ctx>,
+    bool_type: IntType<'ctx>,
 }
 
 impl<'ctx> CodeGenLLVM<'ctx> {
@@ -56,9 +60,12 @@ impl<'ctx> CodeGenLLVM<'ctx> {
         let mut type_to_llvm_type: HashMap<Type, BasicTypeEnum<'ctx>> = HashMap::new();
 
         // Store basic types
-        type_to_llvm_type.insert(Type::Int, BasicTypeEnum::IntType(context.0.i64_type()));
-        type_to_llvm_type.insert(Type::Double, BasicTypeEnum::FloatType(context.0.f64_type()));
-        type_to_llvm_type.insert(Type::Bool, BasicTypeEnum::IntType(context.0.custom_width_int_type(1)));
+        let int_type = context.0.i64_type();
+        let double_type = context.0.f64_type();
+        let bool_type = context.0.bool_type();
+        type_to_llvm_type.insert(Type::Int, BasicTypeEnum::IntType(int_type));
+        type_to_llvm_type.insert(Type::Double, BasicTypeEnum::FloatType(double_type));
+        type_to_llvm_type.insert(Type::Bool, BasicTypeEnum::IntType(bool_type));
 
         Self {
             context,
@@ -67,6 +74,9 @@ impl<'ctx> CodeGenLLVM<'ctx> {
             type_to_llvm_type,
             void_type: context.0.void_type(),
             pass_managers: Vec::new(),
+            int_type,
+            double_type,
+            bool_type,
         }
     }
 
@@ -145,28 +155,43 @@ impl<'ctx> CodeGenInner<'ctx> {
             match implicit_cast_entry {
                 ImplicitCast::IntZext => function_context
                     .builder
-                    .build_int_z_extend(value.into_int_value(), codegen.type_to_llvm_type[&Type::Int].into_int_type(), "zext")
+                    .build_int_z_extend(value.into_int_value(), codegen.int_type, "zext")
                     .as_basic_value_enum(),
                 ImplicitCast::UnsignedIntToDouble => function_context
                     .builder
-                    .build_unsigned_int_to_float(value.into_int_value(), codegen.type_to_llvm_type[&Type::Double].into_float_type(), "double")
+                    .build_unsigned_int_to_float(value.into_int_value(), codegen.double_type, "double")
                     .as_basic_value_enum(),
                 ImplicitCast::SignedIntToDouble => function_context
                     .builder
-                    .build_signed_int_to_float(value.into_int_value(), codegen.type_to_llvm_type[&Type::Double].into_float_type(), "double")
+                    .build_signed_int_to_float(value.into_int_value(), codegen.double_type, "double")
                     .as_basic_value_enum(),
                 ImplicitCast::IntToBool => function_context
                     .builder
-                    .build_int_compare(inkwell::IntPredicate::NE, value.into_int_value(), codegen.type_to_llvm_type[&Type::Int].into_int_type().const_int(0, false), "int_to_bool")
+                    .build_int_compare(
+                        inkwell::IntPredicate::NE,
+                        value.into_int_value(),
+                        codegen.int_type.const_int(0, false),
+                        "int_to_bool",
+                    )
                     .as_basic_value_enum(),
                 ImplicitCast::DoubleToBool => function_context
                     .builder
-                    .build_float_compare(inkwell::FloatPredicate::UNE, value.into_float_value(), codegen.type_to_llvm_type[&Type::Double].into_float_type().const_float(0.0), "double_to_bool")
+                    .build_float_compare(
+                        inkwell::FloatPredicate::UNE,
+                        value.into_float_value(),
+                        codegen.double_type.const_float(0.0),
+                        "double_to_bool",
+                    )
                     .as_basic_value_enum(),
             }
         } else {
             value
         }
+    }
+
+    fn emit_instructions_with_casts<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ast, 'ctx>, codegen: &CodeGenLLVM<'ctx>) -> BasicValueEnum<'ctx> {
+        let value = self.emit_instructions(ast, function_context, codegen).expect("ast should create a value");
+        self.emit_implicit_cast_if_necessary(ast.0.as_handle(), value, function_context, codegen)
     }
 
     fn emit_instructions<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ast, 'ctx>, codegen: &CodeGenLLVM<'ctx>) -> Option<BasicValueEnum<'ctx>> {
@@ -177,8 +202,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                 Some(value)
             }
             Ast::UnaryOperation(UnaryOperation(operation, operand)) => {
-                let operand_value = self.emit_instructions(operand, function_context, codegen).expect("operand should have a value");
-                let operand_value = self.emit_implicit_cast_if_necessary(operand.0.as_handle(), operand_value, function_context, codegen);
+                let operand_value = self.emit_instructions_with_casts(operand, function_context, codegen);
                 match operation {
                     UnaryOperationKind::Minus => {
                         if operand_value.is_int_value() {
@@ -200,10 +224,8 @@ impl<'ctx> CodeGenInner<'ctx> {
                 None
             }
             Ast::BinaryOperation(BinaryOperation(lhs, operation, rhs)) => {
-                let lhs_value = self.emit_instructions(lhs, function_context, codegen).expect("lhs should have a value");
-                let lhs_value = self.emit_implicit_cast_if_necessary(lhs.0.as_handle(), lhs_value, function_context, codegen);
-                let rhs_value = self.emit_instructions(rhs, function_context, codegen).expect("rhs should have a value");
-                let rhs_value = self.emit_implicit_cast_if_necessary(rhs.0.as_handle(), rhs_value, function_context, codegen);
+                let lhs_value = self.emit_instructions_with_casts(lhs, function_context, codegen);
+                let rhs_value = self.emit_instructions_with_casts(rhs, function_context, codegen);
                 // TODO: overflow handling, check NaN handling, division by zero checking, power of zero checking
 
                 if operation.is_comparison_op() {
@@ -245,13 +267,32 @@ impl<'ctx> CodeGenInner<'ctx> {
                                 Some(function_context.builder.build_int_mul(lhs_value.into_int_value(), rhs_value.into_int_value(), "mul").into())
                             }
                         }
-                        _ => unimplemented!(),
+                        BinaryOperationKind::DoubleDivision => {
+                            assert!(lhs_value.is_float_value() && rhs_value.is_float_value());
+                            Some(function_context.builder.build_float_div(lhs_value.into_float_value(), rhs_value.into_float_value(), "div").into())
+                        }
+                        BinaryOperationKind::WholeDivision => {
+                            if lhs_value.is_float_value() {
+                                let div_result = function_context.builder.build_float_div(lhs_value.into_float_value(), rhs_value.into_float_value(), "div");
+                                let floor_intrinsic = Intrinsic::find("llvm.floor").expect("floor intrinsic should exist");
+                                let floor_function = floor_intrinsic.get_declaration(&self.module, &[lhs_value.get_type()]).expect("floor function should exist");
+                                //let floor_result = function_context.builder.build_float_trunc(div_result, codegen.int_type, "trunc");
+                                let floor_result = function_context.builder.build_call(floor_function, &[div_result.into()], "floor").try_as_basic_value().expect_left("value should exist");
+                                Some(floor_result.into())
+                            } else {
+                                // TODO: -2//3
+                                Some(function_context.builder.build_int_signed_div(lhs_value.into_int_value(), rhs_value.into_int_value(), "div").into())
+                            }
+                        }
+                        BinaryOperationKind::Power => {
+                            unimplemented!("power not implemented");
+                        }
+                        _ => unreachable!(),
                     }
                 }
             }
             Ast::IfStatement(IfStatement { condition, statements }) => {
-                let condition_value = self.emit_instructions(condition, function_context, codegen).expect("condition should have a value");
-                let condition_value = self.emit_implicit_cast_if_necessary(condition.0.as_handle(), condition_value, function_context, codegen);
+                let condition_value = self.emit_instructions_with_casts(condition, function_context, codegen);
 
                 let then_block = codegen.context.0.append_basic_block(function_context.function_value, "then");
                 let else_block = codegen.context.0.append_basic_block(function_context.function_value, "after_if");
@@ -270,16 +311,13 @@ impl<'ctx> CodeGenInner<'ctx> {
                 None
             }
             Ast::LiteralInt(LiteralInt(value)) => {
-                let ty = codegen.type_to_llvm_type.get(&Type::Int).expect("int should exist").into_int_type();
-                Some(ty.const_int(*value as u64, false).into())
+                Some(codegen.int_type.const_int(*value as u64, false).into())
             }
             Ast::LiteralBool(LiteralBool(bool)) => {
-                let ty = codegen.type_to_llvm_type.get(&Type::Bool).expect("bool should exist").into_int_type();
-                Some(ty.const_int(if *bool { 1 } else { 0 }, false).into())
+                Some(codegen.bool_type.const_int(if *bool { 1 } else { 0 }, false).into())
             }
             Ast::LiteralDouble(LiteralDouble(value)) => {
-                let ty = codegen.type_to_llvm_type.get(&Type::Double).expect("double should exist").into_float_type();
-                Some(ty.const_float(*value).into())
+                Some(codegen.double_type.const_float(*value).into())
             }
             Ast::Assignment(Assignment(name, expression)) => {
                 let variable = function_context.variables.get(name).expect("variable should exist");
