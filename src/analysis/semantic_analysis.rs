@@ -2,9 +2,9 @@ use crate::analysis::function_collector_pass::FunctionCollectorPass;
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::type_checker_pass::TypeCheckerPass;
 use crate::analysis::types::{SemanticError, SemanticErrorList, UniqueFunctionIdentifier};
-use crate::ast::{Ast, AstHandle};
 use crate::function_info::FunctionInfo;
-use crate::span::Spanned;
+use crate::syntax::ast::{Ast, AstHandle};
+use crate::syntax::span::Spanned;
 use crate::type_system::{ImplicitCast, Type};
 use std::collections::HashMap;
 
@@ -31,7 +31,10 @@ impl<'ast> SemanticAnalyser<'ast> {
         let mut semantic_error_list = SemanticErrorList::default();
 
         self.function_map = {
-            let mut function_collector = FunctionCollectorPass { function_map: Default::default(), semantic_error_list: &mut semantic_error_list };
+            let mut function_collector = FunctionCollectorPass {
+                function_map: Default::default(),
+                semantic_error_list: &mut semantic_error_list,
+            };
             function_collector.visit(self.ast);
             function_collector.function_map
         };

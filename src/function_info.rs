@@ -1,5 +1,5 @@
-use crate::ast::Ast;
-use crate::span::Spanned;
+use crate::syntax::ast::Ast;
+use crate::syntax::span::Spanned;
 use crate::type_system::Type;
 use std::collections::HashMap;
 

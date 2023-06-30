@@ -1,23 +1,19 @@
 use crate::analysis::semantic_analysis::SemanticAnalyser;
 use crate::codegen::CodeGen;
 use crate::codegen_llvm::CodeGenContext;
-use crate::parser::{parse, ParserOptions};
+use crate::syntax::parser::{parse, ParserOptions};
 use ariadne::{sources, Color, Label, Report, ReportKind};
 use clap::Parser;
 use clap_derive::Parser;
+use clap_num::number_range;
 use std::process::ExitCode;
 use std::rc::Rc;
-use clap_num::number_range;
 
 pub mod analysis;
-pub mod ast;
 pub mod codegen;
 pub mod codegen_llvm;
 pub mod function_info;
-pub mod lexer;
-pub mod parser;
-pub mod span;
-pub mod token;
+pub mod syntax;
 pub mod type_system;
 
 fn parse_optimization_level(s: &str) -> Result<u32, String> {

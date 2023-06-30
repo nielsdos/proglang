@@ -1,5 +1,5 @@
-use crate::span::Span;
-use crate::token::{Token, TokenTree};
+use crate::syntax::span::Span;
+use crate::syntax::token::{Token, TokenTree};
 use chumsky::container::Container;
 use chumsky::prelude::*;
 use std::str::FromStr;

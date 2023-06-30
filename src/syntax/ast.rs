@@ -1,4 +1,4 @@
-use crate::span::Spanned;
+use crate::syntax::span::Spanned;
 use crate::type_system::Type;
 
 #[derive(Debug, Clone, Eq, PartialEq)]

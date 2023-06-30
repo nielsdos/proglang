@@ -1,4 +1,4 @@
-use crate::span::Spanned;
+use crate::syntax::span::Spanned;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug)]

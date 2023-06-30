@@ -1,12 +1,12 @@
 // Based on the sample code from https://github.com/zesterer/chumsky/blob/main/examples/nano_rust.rs
 
-use crate::ast::{
+use crate::syntax::ast::{
     Assignment, Ast, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
     UnaryOperationKind,
 };
-use crate::lexer::lexer;
-use crate::span::{Span, Spanned};
-use crate::token::{Token, TokenTree};
+use crate::syntax::lexer::lexer;
+use crate::syntax::span::{Span, Spanned};
+use crate::syntax::token::{Token, TokenTree};
 use crate::type_system::Type;
 use ariadne::{sources, Color, Label, Report, ReportKind};
 use chumsky::input::{BoxedStream, SpannedInput, Stream};

@@ -1,4 +1,4 @@
-use crate::span::Span;
+use crate::syntax::span::Span;
 
 #[derive(Debug, Eq, Hash, PartialEq)]
 pub struct UniqueFunctionIdentifier<'ast>(pub &'ast str);

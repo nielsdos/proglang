@@ -1,11 +1,11 @@
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::types::{SemanticErrorList, UniqueFunctionIdentifier};
-use crate::ast::Ast;
-use crate::ast::{
+use crate::function_info::{FunctionInfo, VariableUpdateError};
+use crate::syntax::ast::Ast;
+use crate::syntax::ast::{
     Assignment, AstHandle, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
 };
-use crate::function_info::{FunctionInfo, VariableUpdateError};
-use crate::span::Span;
+use crate::syntax::span::Span;
 use crate::type_system::{ImplicitCast, Type};
 use std::collections::HashMap;
 
@@ -162,15 +162,13 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
                     self.semantic_error_list.report_error_with_note(
                         span,
                         "therefore, this statement and any following statements in this block, are unreachable".to_string(),
-                        (*last_return_span).into(),
+                        *last_return_span,
                         "this is the last executed statement in this block".to_string(),
                     );
                     has_warned_about_return = true;
                 }
-            } else {
-                if matches!(statement, (Ast::ReturnStatement(_), _)) {
-                    last_return_span = Some(span);
-                }
+            } else if matches!(statement, (Ast::ReturnStatement(_), _)) {
+                last_return_span = Some(span);
             }
         }
         Type::Void
