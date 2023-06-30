@@ -210,6 +210,9 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         let function_name = self.current_function.as_ref().unwrap().0;
         if let Some(value) = &node.value {
             let returned_type = self.visit(value);
+            if returned_type.is_error() {
+                return Type::Error;
+            }
             if returned_type != function_return_type {
                 self.semantic_error_list.report_error(
                     span,
