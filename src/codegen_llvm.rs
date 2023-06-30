@@ -10,7 +10,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
-use inkwell::types::{BasicTypeEnum, FloatType, IntType, VoidType};
+use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FloatType, IntType, VoidType};
 use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue};
 use std::collections::HashMap;
 use std::path::Path;
@@ -113,7 +113,14 @@ impl<'ctx> CodeGenInner<'ctx> {
     pub fn codegen_function(&self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
         // Create function declaration and entry basic block
         let context = &codegen.context.0;
-        let function_type = codegen.void_type.fn_type(&[], false);
+
+        let param_types: &[BasicMetadataTypeEnum<'ctx>] = &[];
+        let function_type = if function_info.return_type() == Type::Void {
+            codegen.void_type.fn_type(param_types, false)
+        } else {
+            codegen.type_to_llvm_type[&function_info.return_type()].fn_type(param_types, false)
+        };
+
         let function_value = self.module.add_function(name.as_str(), function_type, None);
         let basic_block = context.append_basic_block(function_value, "entry");
         builder.position_at_end(basic_block);

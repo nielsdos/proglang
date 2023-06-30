@@ -7,6 +7,7 @@ use std::collections::HashMap;
 pub struct FunctionInfo<'ast> {
     body: &'ast Spanned<Ast<'ast>>,
     variable_types: HashMap<&'ast str, Type>,
+    return_type: Type,
 }
 
 pub enum VariableUpdateError {
@@ -14,8 +15,8 @@ pub enum VariableUpdateError {
 }
 
 impl<'ast> FunctionInfo<'ast> {
-    pub fn new(body: &'ast Spanned<Ast<'ast>>) -> Self {
-        Self { body, variable_types: HashMap::new() }
+    pub fn new(body: &'ast Spanned<Ast<'ast>>, return_type: Type) -> Self {
+        Self { body, variable_types: HashMap::new(), return_type }
     }
 
     pub fn query_variable_type(&self, identifier: &'ast str) -> Option<&Type> {
@@ -41,5 +42,9 @@ impl<'ast> FunctionInfo<'ast> {
 
     pub fn body(&self) -> &'ast Spanned<Ast<'ast>> {
         self.body
+    }
+
+    pub fn return_type(&self) -> Type {
+        self.return_type
     }
 }

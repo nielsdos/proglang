@@ -59,7 +59,7 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
     }
 
     fn visit_function_declaration(&mut self, _: AstHandle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> T {
-        self.visit(&node.1);
+        self.visit(&node.statements);
         T::default()
     }
 

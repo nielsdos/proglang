@@ -159,8 +159,8 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
     }
 
     fn visit_function_declaration(&mut self, _: AstHandle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> Type {
-        self.enter_function_scope(UniqueFunctionIdentifier(node.0));
-        self.visit(&node.1);
+        self.enter_function_scope(UniqueFunctionIdentifier(node.name));
+        self.visit(&node.statements);
         self.leave_function_scope();
         Type::Void
     }

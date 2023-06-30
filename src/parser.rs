@@ -167,9 +167,13 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
         .then(parse_statement_list())
         .then_ignore(just(Token::BlockEnd))
         .map(|(((fn_span, fn_name), return_type), statements)| {
-            println!("return_type {:?}", return_type);
             let span = fn_span.start..statements.1.end;
-            (Ast::FunctionDeclaration(FunctionDeclaration(fn_name, Box::new(statements))), span.into())
+            let declaration = FunctionDeclaration {
+                name: fn_name,
+                statements: Box::new(statements),
+                return_type: return_type.unwrap_or(Type::Void),
+            };
+            (Ast::FunctionDeclaration(declaration), span.into())
         })
 }
 
