@@ -158,7 +158,6 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             self.visit(statement);
             if let Some(last_return_span) = &last_return_span {
                 if !has_warned_about_return {
-                    // TODO: underline the retur nstatement in last_return_span
                     // TODO: relax to warning? take into account codegen then: we may not generate instructions after a terminator!
                     self.semantic_error_list.report_error_with_note(
                         span,
