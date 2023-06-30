@@ -150,6 +150,11 @@ impl<'ctx> CodeGenInner<'ctx> {
         if function_context.is_bb_unterminated() {
             function_context.builder.build_return(None);
         }
+
+        if !function_value.verify(true) {
+            function_value.print_to_stderr();
+            panic!("Function '{}' is invalid", name.0);
+        }
     }
 
     fn emit_implicit_cast_if_necessary<'ast>(
