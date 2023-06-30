@@ -333,7 +333,15 @@ impl<'ctx> CodeGenInner<'ctx> {
                             }
                         }
                         BinaryOperationKind::Power => {
-                            unimplemented!("power not implemented");
+                            assert!(lhs_value.is_float_value() && rhs_value.is_float_value());
+                            let pow_intrinsic = Intrinsic::find("llvm.pow").expect("pow intrinsic should exist");
+                            let pow_function = pow_intrinsic.get_declaration(&self.module, &[lhs_value.get_type()]).expect("pow function should exist");
+                            let pow_result = function_context
+                                .builder
+                                .build_call(pow_function, &[lhs_value.into(), rhs_value.into()], "pow")
+                                .try_as_basic_value()
+                                .expect_left("value should exist");
+                            Some(pow_result)
                         }
                         _ => unreachable!(),
                     }
