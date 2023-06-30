@@ -1,6 +1,6 @@
 use crate::analysis::semantic_analysis::SemanticAnalyser;
-use crate::codegen::CodeGen;
-use crate::codegen_llvm::CodeGenContext;
+use crate::codegen::codegen_driver::CodeGen;
+use crate::codegen::codegen_llvm::CodeGenContext;
 use crate::syntax::parser::{parse, ParserOptions};
 use ariadne::{sources, Color, Label, Report, ReportKind};
 use clap::Parser;
@@ -11,7 +11,6 @@ use std::rc::Rc;
 
 pub mod analysis;
 pub mod codegen;
-pub mod codegen_llvm;
 pub mod function_info;
 pub mod syntax;
 pub mod type_system;
