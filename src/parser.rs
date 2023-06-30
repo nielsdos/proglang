@@ -23,7 +23,7 @@ type ParserInput<'tokens, 'src> = SpannedInput<Token<'src>, Span, BoxedStream<'t
 
 type ParserExtra<'tokens, 'src> = extra::Err<Rich<'tokens, Token<'src>, Span>>;
 
-fn compute_span_over_slice<'src>(slice: &[Spanned<Ast<'src>>]) -> Span {
+fn compute_span_over_slice(slice: &[Spanned<Ast>]) -> Span {
     if slice.is_empty() {
         SimpleSpan::new(0, 0)
     } else {
