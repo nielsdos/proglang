@@ -61,11 +61,14 @@ fn main() -> ExitCode {
             }
         } else {
             for error in semantic_analyser.errors() {
-                let _ = Report::build(ReportKind::Error, filename.clone(), error.span().start)
-                    .with_message(error.error_text())
-                    .with_label(Label::new((filename.clone(), error.span().into_range())).with_color(Color::Red))
-                    .finish()
-                    .print(sources([(filename.clone(), input.clone())]));
+                let report = Report::build(ReportKind::Error, filename.clone(), error.span().start)
+                    .with_label(Label::new((filename.clone(), error.span().into_range())).with_message(error.error_text()).with_color(Color::Red));
+                let report = if let Some(note) = error.note() {
+                    report.with_label(Label::new((filename.clone(), note.span().into_range())).with_message(note.error_text()).with_color(Color::Yellow))
+                } else {
+                    report
+                };
+                let _ = report.finish().print(sources([(filename.clone(), input.clone())]));
             }
         }
 

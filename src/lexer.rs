@@ -26,6 +26,7 @@ impl<T> Container<Vec<T>> for FlatVec<T> {
 
 pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra::Err<Rich<'src, char, Span>>> {
     // TODO: these two can fail, handle them gracefully
+    // TODO: https://github.com/zesterer/chumsky/pull/462
     let dbl = text::int(10)
         .slice()
         .then(just('.'))
