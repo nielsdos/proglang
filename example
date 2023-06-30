@@ -8,5 +8,6 @@ fn test() -> double:
     b = 5.0//three
     return -a
 
-
+fn x():
+	return
 

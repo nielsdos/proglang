@@ -23,6 +23,14 @@ type ParserInput<'tokens, 'src> = SpannedInput<Token<'src>, Span, BoxedStream<'t
 
 type ParserExtra<'tokens, 'src> = extra::Err<Rich<'tokens, Token<'src>, Span>>;
 
+fn compute_span_over_slice<'src>(slice: &[Spanned<Ast<'src>>]) -> Span {
+    if slice.is_empty() {
+        SimpleSpan::new(0, 0)
+    } else {
+        (slice[0].1.start..slice[slice.len() - 1].1.end).into()
+    }
+}
+
 fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>> + Clone {
     recursive(|expression| {
         let literal = select! {
@@ -142,11 +150,7 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
         let statement = choice((assignment, if_check, return_));
 
         statement.repeated().at_least(1).collect::<Vec<_>>().map(|list| {
-            let span = if list.is_empty() {
-                SimpleSpan::new(0, 0)
-            } else {
-                (list[0].1.start..list[list.len() - 1].1.end).into()
-            };
+            let span = compute_span_over_slice(&list);
             (Ast::StatementList(StatementList(list)), span)
         })
     })
@@ -184,7 +188,10 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
 }
 
 fn parser<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>> {
-    parse_declarations()
+    parse_declarations().repeated().collect::<Vec<_>>().map(|declarations| {
+        let span = compute_span_over_slice(&declarations);
+        (Ast::StatementList(StatementList(declarations)), span)
+    })
 }
 
 pub fn parse(filename: Rc<str>, input: &str, options: ParserOptions) -> Option<Spanned<Ast>> {
