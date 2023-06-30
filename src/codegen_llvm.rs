@@ -13,6 +13,10 @@ use inkwell::passes::PassManager;
 use inkwell::types::{BasicTypeEnum, VoidType};
 use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue};
 use std::collections::HashMap;
+use std::path::Path;
+use inkwell::intrinsics::Intrinsic;
+use inkwell::OptimizationLevel;
+use inkwell::targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple};
 
 pub struct CodeGenContext(Context);
 
@@ -289,6 +293,12 @@ impl<'ctx> CodeGenInner<'ctx> {
 
     pub fn dump_module(&self) {
         self.module.print_to_stderr();
+        // TODO: init & output should be split, and also moved to a different method
+        Target::initialize_x86(&InitializationConfig::default());
+        let target_triple = TargetTriple::create("x86_64-unknown-linux-gnu");
+        let target = Target::from_triple(&target_triple).expect("target should exist");
+        let target_machine = target.create_target_machine(&target_triple, "generic", "", OptimizationLevel::None, RelocMode::Default, CodeModel::Default).expect("target machine should exist");
+        target_machine.write_to_file(&self.module, FileType::Assembly, Path::new("output.s")).expect("should write to file");
     }
 }
 
