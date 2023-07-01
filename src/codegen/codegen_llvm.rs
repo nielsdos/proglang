@@ -42,6 +42,7 @@ struct CodeGenFunctionContext<'f, 'ctx> {
 struct CodeGenInner<'ctx> {
     module: Module<'ctx>,
     semantic_analyser: &'ctx SemanticAnalyser<'ctx>,
+    optimization_level: u32,
 }
 
 pub struct CodeGenLLVM<'ctx> {
@@ -131,7 +132,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
 
     pub fn add_module(&mut self, module_name: &'ctx str) {
         let module = self.context.0.create_module(module_name);
-        let inner = CodeGenInner::new(module, self.semantic_analyser);
+        let inner = CodeGenInner::new(module, self.semantic_analyser, self.optimization_level);
         self.modules.push(inner);
         self.pass_managers.push(self.create_pass_manager());
     }
@@ -152,8 +153,8 @@ impl<'ctx> CodeGenLLVM<'ctx> {
 }
 
 impl<'ctx> CodeGenInner<'ctx> {
-    pub fn new(module: Module<'ctx>, semantic_analyser: &'ctx SemanticAnalyser<'ctx>) -> Self {
-        Self { module, semantic_analyser }
+    pub fn new(module: Module<'ctx>, semantic_analyser: &'ctx SemanticAnalyser<'ctx>, optimization_level: u32) -> Self {
+        Self { module, semantic_analyser, optimization_level }
     }
 
     pub fn codegen_function(&self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
@@ -440,9 +441,14 @@ impl<'ctx> CodeGenInner<'ctx> {
         Target::initialize_x86(&InitializationConfig::default());
         let target_triple = TargetTriple::create("x86_64-unknown-linux-gnu");
         let target = Target::from_triple(&target_triple).expect("target should exist");
-        // TODO: set optimization level
+        let optimization_level = match self.optimization_level {
+            0 => OptimizationLevel::None,
+            1 => OptimizationLevel::Less,
+            2 => OptimizationLevel::Default,
+            _ => OptimizationLevel::Aggressive,
+        };
         let target_machine = target
-            .create_target_machine(&target_triple, "generic", "", OptimizationLevel::None, RelocMode::Default, CodeModel::Default)
+            .create_target_machine(&target_triple, "generic", "", optimization_level, RelocMode::Default, CodeModel::Default)
             .expect("target machine should exist");
         target_machine.write_to_file(&self.module, FileType::Assembly, Path::new("output.s")).expect("should write to file");
     }
