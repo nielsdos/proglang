@@ -81,8 +81,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
     let token = choice((dbl, int, comma, parens, multi_operator, compound_assignment, single_operator, keyword_or_identifier));
 
     let block = recursive(|block| {
-        // TODO: support tabs
-        let indentation = just(' ').repeated().configure(|cfg, &parent_indentation| cfg.exactly(parent_indentation));
+        let indentation = text::inline_whitespace().configure(|cfg, &parent_indentation| cfg.exactly(parent_indentation));
         let tokens_base = token
             .map_with_span(|token, span| (token, span))
             .padded_by(text::inline_whitespace())

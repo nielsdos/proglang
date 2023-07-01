@@ -1,4 +1,5 @@
 fn test_double() -> double:
     return 3.0//2
 fn test_int(int x, int y) -> int:
-    return x * y
+	x = x
+	return x * y
