@@ -7,6 +7,7 @@ use crate::syntax::ast::{
 use crate::syntax::span::Span;
 use crate::types::function_info::{FunctionInfo, VariableUpdateError};
 use crate::types::type_system::{ImplicitCast, Type};
+use smallvec::SmallVec;
 use std::collections::HashMap;
 
 pub(crate) struct TypeCheckerPass<'ast, 'f> {
@@ -176,11 +177,17 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
 
     fn visit_function_declaration(&mut self, _: AstHandle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> Type {
         self.enter_function_scope(UniqueFunctionIdentifier(node.name));
-        println!("{:?}", node.args);
         let scope = self.current_function_scope_mut().expect("just entered a function");
+        let mut errors: SmallVec<[(Span, String); 4]> = SmallVec::new();
         for arg in &node.args {
-            // TODO: handle errors like duplicate vars
-            scope.update_variable_type(arg.name(), arg.ty());
+            if scope.query_variable_type(arg.0.name()).is_some() {
+                errors.push((arg.1, format!("argument '{}' is declared more than once", arg.0.name())));
+            } else {
+                scope.update_variable_type(arg.0.name(), arg.0.ty()).expect("cannot fail because the variable did not exist yet");
+            }
+        }
+        for error in errors.into_iter() {
+            self.semantic_error_list.report_error(error.0, error.1);
         }
         self.visit(&node.statements);
         self.leave_function_scope();

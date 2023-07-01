@@ -7,6 +7,7 @@ use crate::syntax::ast::{
 use crate::syntax::lexer::lexer;
 use crate::syntax::span::{Span, Spanned};
 use crate::syntax::token::{Token, TokenTree};
+use crate::types::function_info::ArgumentInfo;
 use crate::types::type_system::Type;
 use ariadne::{sources, Color, Label, Report, ReportKind};
 use chumsky::input::{BoxedStream, SpannedInput, Stream};
@@ -14,7 +15,6 @@ use chumsky::prelude::*;
 use std::collections::VecDeque;
 use std::iter;
 use std::rc::Rc;
-use crate::types::function_info::ArgumentInfo;
 
 pub struct ParserOptions {
     pub dump_token_tree: bool,
@@ -180,7 +180,7 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
         .then(
             parse_type()
                 .then(identifier)
-                .map(|(ty, ident)| ArgumentInfo::new(ident, ty))
+                .map_with_span(|(ty, ident), span| (ArgumentInfo::new(ident, ty), span))
                 .separated_by(just(Token::Comma))
                 .allow_trailing()
                 .collect::<Vec<_>>(),

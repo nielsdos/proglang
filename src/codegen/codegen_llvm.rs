@@ -16,9 +16,9 @@ use inkwell::targets::{CodeModel, FileType, InitializationConfig, RelocMode, Tar
 use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FloatType, IntType, VoidType};
 use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue};
 use inkwell::{IntPredicate, OptimizationLevel};
+use smallvec::SmallVec;
 use std::collections::HashMap;
 use std::path::Path;
-use smallvec::SmallVec;
 
 pub struct CodeGenContext(Context);
 
@@ -160,10 +160,15 @@ impl<'ctx> CodeGenInner<'ctx> {
         // Create function declaration and entry basic block
         let context = &codegen.context.0;
 
-        let arg_types = function_info.args().iter().map(|arg| {
-            let ty = codegen.type_to_llvm_type[&arg.ty()];
-            BasicMetadataTypeEnum::from(ty)
-        }).collect::<SmallVec<[BasicMetadataTypeEnum<'ctx>; 4]>>();
+        let arg_types = function_info
+            .args()
+            .iter()
+            .map(|arg| {
+                let arg = &arg.0;
+                let ty = codegen.type_to_llvm_type[&arg.ty()];
+                BasicMetadataTypeEnum::from(ty)
+            })
+            .collect::<SmallVec<[BasicMetadataTypeEnum<'ctx>; 4]>>();
 
         let function_type = if function_info.return_type() == Type::Void {
             codegen.void_type.fn_type(arg_types.as_slice(), false)
@@ -193,7 +198,7 @@ impl<'ctx> CodeGenInner<'ctx> {
 
         // Copy arguments to the function's scope
         for (index, arg) in function_info.args().iter().enumerate() {
-            let variable_memory = variables[arg.name()].ptr;
+            let variable_memory = variables[arg.0.name()].ptr;
             let arg_value = function_value.get_nth_param(index as u32).expect("argument should exist");
             builder.build_store(variable_memory, arg_value);
         }

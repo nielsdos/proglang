@@ -13,10 +13,11 @@ pub struct ArgumentInfo<'ast> {
 pub struct FunctionInfo<'ast> {
     body: &'ast Spanned<Ast<'ast>>,
     variable_types: HashMap<&'ast str, Type>,
-    args: &'ast [ArgumentInfo<'ast>],
+    args: &'ast [Spanned<ArgumentInfo<'ast>>],
     return_type: Type,
 }
 
+#[derive(Debug)]
 pub enum VariableUpdateError {
     TypeMismatch(Type),
 }
@@ -38,7 +39,7 @@ impl<'ast> ArgumentInfo<'ast> {
 }
 
 impl<'ast> FunctionInfo<'ast> {
-    pub fn new(body: &'ast Spanned<Ast<'ast>>, args: &'ast [ArgumentInfo<'ast>], return_type: Type) -> Self {
+    pub fn new(body: &'ast Spanned<Ast<'ast>>, args: &'ast [Spanned<ArgumentInfo<'ast>>], return_type: Type) -> Self {
         Self {
             body,
             variable_types: HashMap::new(),
@@ -79,7 +80,7 @@ impl<'ast> FunctionInfo<'ast> {
     }
 
     #[inline]
-    pub fn args(&self) -> &'ast [ArgumentInfo<'ast>] {
+    pub fn args(&self) -> &'ast [Spanned<ArgumentInfo<'ast>>] {
         self.args
     }
 }
