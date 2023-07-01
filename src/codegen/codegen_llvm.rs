@@ -1,12 +1,12 @@
 use crate::analysis::semantic_analysis::SemanticAnalyser;
 use crate::analysis::types::UniqueFunctionIdentifier;
-use crate::function_info::FunctionInfo;
 use crate::syntax::ast::{
     Assignment, Ast, AstHandle, BinaryOperation, BinaryOperationKind, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
     UnaryOperationKind,
 };
 use crate::syntax::span::Spanned;
-use crate::type_system::{ImplicitCast, Type};
+use crate::types::function_info::FunctionInfo;
+use crate::types::type_system::{ImplicitCast, Type};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::intrinsics::Intrinsic;

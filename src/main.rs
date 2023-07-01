@@ -11,9 +11,8 @@ use std::rc::Rc;
 
 pub mod analysis;
 pub mod codegen;
-pub mod function_info;
 pub mod syntax;
-pub mod type_system;
+pub mod types;
 
 fn parse_optimization_level(s: &str) -> Result<u32, String> {
     number_range(s, 0, 3)

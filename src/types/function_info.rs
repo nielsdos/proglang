@@ -1,6 +1,6 @@
 use crate::syntax::ast::Ast;
 use crate::syntax::span::Spanned;
-use crate::type_system::Type;
+use crate::types::type_system::Type;
 use std::collections::HashMap;
 
 #[derive(Debug)]

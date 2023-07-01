@@ -1,5 +1,5 @@
 use crate::syntax::span::Spanned;
-use crate::type_system::Type;
+use crate::types::type_system::Type;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum BinaryOperationKind {

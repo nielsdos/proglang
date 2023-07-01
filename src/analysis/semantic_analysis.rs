@@ -2,10 +2,10 @@ use crate::analysis::function_collector_pass::FunctionCollectorPass;
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::type_checker_pass::TypeCheckerPass;
 use crate::analysis::types::{SemanticError, SemanticErrorList, UniqueFunctionIdentifier};
-use crate::function_info::FunctionInfo;
 use crate::syntax::ast::{Ast, AstHandle};
 use crate::syntax::span::Spanned;
-use crate::type_system::{ImplicitCast, Type};
+use crate::types::function_info::FunctionInfo;
+use crate::types::type_system::{ImplicitCast, Type};
 use std::collections::HashMap;
 
 pub struct SemanticAnalyser<'ast> {

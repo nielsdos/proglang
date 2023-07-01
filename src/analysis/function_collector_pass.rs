@@ -1,8 +1,8 @@
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::types::{SemanticErrorList, UniqueFunctionIdentifier};
-use crate::function_info::FunctionInfo;
 use crate::syntax::ast::{AstHandle, FunctionDeclaration};
 use crate::syntax::span::Span;
+use crate::types::function_info::FunctionInfo;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 

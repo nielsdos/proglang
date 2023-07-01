@@ -7,7 +7,7 @@ use crate::syntax::ast::{
 use crate::syntax::lexer::lexer;
 use crate::syntax::span::{Span, Spanned};
 use crate::syntax::token::{Token, TokenTree};
-use crate::type_system::Type;
+use crate::types::type_system::Type;
 use ariadne::{sources, Color, Label, Report, ReportKind};
 use chumsky::input::{BoxedStream, SpannedInput, Stream};
 use chumsky::prelude::*;

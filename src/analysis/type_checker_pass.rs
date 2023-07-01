@@ -1,12 +1,12 @@
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::types::{SemanticErrorList, UniqueFunctionIdentifier};
-use crate::function_info::{FunctionInfo, VariableUpdateError};
 use crate::syntax::ast::Ast;
 use crate::syntax::ast::{
     Assignment, AstHandle, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
 };
 use crate::syntax::span::Span;
-use crate::type_system::{ImplicitCast, Type};
+use crate::types::function_info::{FunctionInfo, VariableUpdateError};
+use crate::types::type_system::{ImplicitCast, Type};
 use std::collections::HashMap;
 
 pub(crate) struct TypeCheckerPass<'ast, 'f> {

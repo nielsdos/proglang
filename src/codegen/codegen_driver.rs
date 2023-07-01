@@ -1,7 +1,7 @@
 use crate::analysis::semantic_analysis::SemanticAnalyser;
 use crate::analysis::types::UniqueFunctionIdentifier;
 use crate::codegen::codegen_llvm::{CodeGenContext, CodeGenLLVM};
-use crate::function_info::FunctionInfo;
+use crate::types::function_info::FunctionInfo;
 
 pub struct CodeGen<'c> {
     semantic_analyser: &'c SemanticAnalyser<'c>,
