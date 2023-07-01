@@ -418,14 +418,14 @@ impl<'f, 'ctx> CodeGenFunctionContext<'f, 'ctx> {
 }
 
 impl BinaryOperationKind {
-    pub fn to_llvm_int_comparison(&self) -> inkwell::IntPredicate {
+    pub fn to_llvm_int_comparison(&self) -> IntPredicate {
         match self {
-            BinaryOperationKind::Equal => inkwell::IntPredicate::EQ,
-            BinaryOperationKind::NotEqual => inkwell::IntPredicate::NE,
-            BinaryOperationKind::LessThan => inkwell::IntPredicate::SLT,
-            BinaryOperationKind::LessThanEqual => inkwell::IntPredicate::SLE,
-            BinaryOperationKind::GreaterThan => inkwell::IntPredicate::SGT,
-            BinaryOperationKind::GreaterThanEqual => inkwell::IntPredicate::SGE,
+            BinaryOperationKind::Equal => IntPredicate::EQ,
+            BinaryOperationKind::NotEqual => IntPredicate::NE,
+            BinaryOperationKind::LessThan => IntPredicate::SLT,
+            BinaryOperationKind::LessThanEqual => IntPredicate::SLE,
+            BinaryOperationKind::GreaterThan => IntPredicate::SGT,
+            BinaryOperationKind::GreaterThanEqual => IntPredicate::SGE,
             _ => unreachable!(),
         }
     }
