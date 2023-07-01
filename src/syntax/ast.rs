@@ -1,5 +1,6 @@
 use crate::syntax::span::Spanned;
 use crate::types::type_system::Type;
+use crate::types::function_info::ArgumentInfo;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum BinaryOperationKind {
@@ -67,6 +68,7 @@ pub struct FunctionDeclaration<'src> {
     pub name: &'src str,
     pub statements: Box<Spanned<Ast<'src>>>,
     pub return_type: Type,
+    pub args: Vec<ArgumentInfo<'src>>,
 }
 #[derive(Debug)]
 pub struct IfStatement<'src> {

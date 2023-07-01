@@ -176,6 +176,12 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
 
     fn visit_function_declaration(&mut self, _: AstHandle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> Type {
         self.enter_function_scope(UniqueFunctionIdentifier(node.name));
+        println!("{:?}", node.args);
+        let scope = self.current_function_scope_mut().expect("just entered a function");
+        for arg in &node.args {
+            // TODO: handle errors like duplicate vars
+            scope.update_variable_type(arg.name(), arg.ty());
+        }
         self.visit(&node.statements);
         self.leave_function_scope();
         Type::Void

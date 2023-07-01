@@ -14,6 +14,7 @@ use chumsky::prelude::*;
 use std::collections::VecDeque;
 use std::iter;
 use std::rc::Rc;
+use crate::types::function_info::ArgumentInfo;
 
 pub struct ParserOptions {
     pub dump_token_tree: bool,
@@ -156,33 +157,46 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
     })
 }
 
-fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>> {
-    let identifier = select! {
-        Token::Identifier(ident) => ident,
-    };
-
-    // TODO: move this out & complete this
+fn parse_type<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Type, ParserExtra<'tokens, 'src>> {
     let ty_name = select! {
         Token::Identifier("double") => Type::Double,
         Token::Identifier("int") => Type::Int,
         Token::Identifier("bool") => Type::Bool,
     };
-    let return_type = just(Token::Arrow).ignore_then(ty_name);
+    ty_name //.map_with_span(|a, b| (a, b))
+}
+
+fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>> {
+    let identifier = select! {
+        Token::Identifier(ident) => ident,
+    };
+
+    let return_type = just(Token::Arrow).ignore_then(parse_type());
 
     just(Token::Fn)
         .map_with_span(|_, span: Span| span)
         .then(identifier)
-        .then_ignore(just(Token::LeftParen).then(just(Token::RightParen)))
+        .then_ignore(just(Token::LeftParen))
+        .then(
+            parse_type()
+                .then(identifier)
+                .map(|(ty, ident)| ArgumentInfo::new(ident, ty))
+                .separated_by(just(Token::Comma))
+                .allow_trailing()
+                .collect::<Vec<_>>(),
+        )
+        .then_ignore(just(Token::RightParen))
         .then(return_type.or_not())
         .then_ignore(just(Token::BlockStart))
         .then(parse_statement_list())
         .then_ignore(just(Token::BlockEnd))
-        .map(|(((fn_span, fn_name), return_type), statements)| {
+        .map(|((((fn_span, fn_name), args), return_type), statements)| {
             let span = fn_span.start..statements.1.end;
             let declaration = FunctionDeclaration {
                 name: fn_name,
                 statements: Box::new(statements),
                 return_type: return_type.unwrap_or(Type::Void),
+                args,
             };
             (Ast::FunctionDeclaration(declaration), span.into())
         })

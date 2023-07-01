@@ -56,6 +56,8 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
 
     let single_operator = one_of("+-*/%=<>").map(Token::Operator);
 
+    let comma = just(',').to(Token::Comma);
+
     let parens = choice((just('(').to(Token::LeftParen), just(')').to(Token::RightParen)));
 
     let keyword_or_identifier = text::ascii::ident().map(|ident| match ident {
@@ -76,7 +78,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
         _ => Token::Identifier(ident),
     });
 
-    let token = choice((dbl, int, parens, multi_operator, compound_assignment, single_operator, keyword_or_identifier));
+    let token = choice((dbl, int, comma, parens, multi_operator, compound_assignment, single_operator, keyword_or_identifier));
 
     let block = recursive(|block| {
         // TODO: support tabs

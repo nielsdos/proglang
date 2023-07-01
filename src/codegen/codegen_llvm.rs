@@ -159,11 +159,17 @@ impl<'ctx> CodeGenInner<'ctx> {
         // Create function declaration and entry basic block
         let context = &codegen.context.0;
 
-        let param_types: &[BasicMetadataTypeEnum<'ctx>] = &[];
+        // TODO: use a SmallVec
+        let arg_types = function_info.args().iter().map(|arg| {
+            let ty = codegen.type_to_llvm_type[&arg.ty()];
+            BasicMetadataTypeEnum::from(ty)
+
+        }).collect::<Vec<_>>();
+
         let function_type = if function_info.return_type() == Type::Void {
-            codegen.void_type.fn_type(param_types, false)
+            codegen.void_type.fn_type(arg_types.as_slice(), false)
         } else {
-            codegen.type_to_llvm_type[&function_info.return_type()].fn_type(param_types, false)
+            codegen.type_to_llvm_type[&function_info.return_type()].fn_type(arg_types.as_slice(), false)
         };
 
         let function_value = self.module.add_function(name.as_str(), function_type, None);
@@ -184,6 +190,13 @@ impl<'ctx> CodeGenInner<'ctx> {
                     ty: variable_type,
                 },
             );
+        }
+
+        // Copy arguments to the function's scope
+        for (index, arg) in function_info.args().iter().enumerate() {
+            let variable_memory = variables[arg.name()].ptr;
+            let arg_value = function_value.get_nth_param(index as u32).expect("argument should exist");
+            builder.build_store(variable_memory, arg_value);
         }
 
         // Emit instructions

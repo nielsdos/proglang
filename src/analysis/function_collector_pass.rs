@@ -24,7 +24,7 @@ impl<'f, 'ast> SemanticAnalysisPass<'ast, ()> for FunctionCollectorPass<'f, 'ast
                 );
             }
             Entry::Vacant(v) => {
-                v.insert(FunctionInfo::new(&node.statements, node.return_type));
+                v.insert(FunctionInfo::new(&node.statements, &node.args, node.return_type));
             }
         }
     }
