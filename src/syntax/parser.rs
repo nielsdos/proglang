@@ -124,7 +124,13 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
             .then_ignore(just(Token::BlockStart))
             .then(statement_list.clone())
             .then_ignore(just(Token::BlockEnd))
-            .then(just(Token::Else).ignore_then(just(Token::BlockStart)).ignore_then(statement_list).then_ignore(just(Token::BlockEnd)).or_not())
+            .then(
+                just(Token::Else)
+                    .ignore_then(just(Token::BlockStart))
+                    .ignore_then(statement_list)
+                    .then_ignore(just(Token::BlockEnd))
+                    .or_not(),
+            )
             .map_with_span(|(((_, condition), then_statements), else_statements), span: Span| (condition, then_statements, else_statements, span))
             .map(|(condition, then_statements, else_statements, span)| {
                 (

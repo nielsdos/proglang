@@ -216,7 +216,6 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
     }
 
     fn visit_return_statement(&mut self, _: AstHandle, node: &'ast ReturnStatement<'ast>, span: Span) -> Type {
-        // TODO: all paths must return
         // TODO: implicit casts?
         let current_function = self.current_function_scope().expect("must be in function context");
         let function_return_type = current_function.return_type();

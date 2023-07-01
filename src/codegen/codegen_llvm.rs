@@ -154,7 +154,11 @@ impl<'ctx> CodeGenLLVM<'ctx> {
 
 impl<'ctx> CodeGenInner<'ctx> {
     pub fn new(module: Module<'ctx>, semantic_analyser: &'ctx SemanticAnalyser<'ctx>, optimization_level: u32) -> Self {
-        Self { module, semantic_analyser, optimization_level }
+        Self {
+            module,
+            semantic_analyser,
+            optimization_level,
+        }
     }
 
     pub fn codegen_function(&self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
@@ -378,7 +382,11 @@ impl<'ctx> CodeGenInner<'ctx> {
                     }
                 }
             }
-            Ast::IfStatement(IfStatement { condition, then_statements, else_statements }) => {
+            Ast::IfStatement(IfStatement {
+                condition,
+                then_statements,
+                else_statements,
+            }) => {
                 let condition_value = self.emit_instructions_with_casts(condition, function_context, codegen);
 
                 let true_block = codegen.context.0.append_basic_block(function_context.function_value, "then");

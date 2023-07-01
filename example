@@ -2,7 +2,10 @@ fn test_double(int x) -> float:
     if x:
     	return 0.0
     else:
-    	return 1.0
+    	x=1
+    	return x+0.0
+
+
 fn test_int(int x, int y) -> int:# xy
 	x = x    #hello world:
 	# test

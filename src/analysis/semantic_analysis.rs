@@ -1,4 +1,5 @@
 use crate::analysis::function_collector_pass::FunctionCollectorPass;
+use crate::analysis::return_check_pass::ReturnCheckPass;
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::type_checker_pass::TypeCheckerPass;
 use crate::analysis::types::{SemanticError, SemanticErrorList, UniqueFunctionIdentifier};
@@ -50,6 +51,11 @@ impl<'ast> SemanticAnalyser<'ast> {
             type_checker.visit(self.ast);
             (type_checker.type_table, type_checker.implicit_cast_table)
         };
+
+        let mut return_check_pass = ReturnCheckPass {
+            semantic_error_list: &mut semantic_error_list,
+        };
+        return_check_pass.visit(self.ast);
 
         self.type_table = type_table;
         self.implicit_cast_table = implicit_cast_table;
