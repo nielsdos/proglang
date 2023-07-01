@@ -18,6 +18,7 @@ use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue};
 use inkwell::{IntPredicate, OptimizationLevel};
 use std::collections::HashMap;
 use std::path::Path;
+use smallvec::SmallVec;
 
 pub struct CodeGenContext(Context);
 
@@ -159,12 +160,10 @@ impl<'ctx> CodeGenInner<'ctx> {
         // Create function declaration and entry basic block
         let context = &codegen.context.0;
 
-        // TODO: use a SmallVec
         let arg_types = function_info.args().iter().map(|arg| {
             let ty = codegen.type_to_llvm_type[&arg.ty()];
             BasicMetadataTypeEnum::from(ty)
-
-        }).collect::<Vec<_>>();
+        }).collect::<SmallVec<[BasicMetadataTypeEnum<'ctx>; 4]>>();
 
         let function_type = if function_info.return_type() == Type::Void {
             codegen.void_type.fn_type(arg_types.as_slice(), false)

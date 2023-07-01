@@ -368,6 +368,7 @@ dependencies = [
  "clap-num",
  "clap_derive",
  "inkwell",
+ "smallvec",
 ]
 
 [[package]]
