@@ -73,7 +73,8 @@ pub struct FunctionDeclaration<'src> {
 #[derive(Debug)]
 pub struct IfStatement<'src> {
     pub condition: Box<Spanned<Ast<'src>>>,
-    pub statements: Box<Spanned<Ast<'src>>>,
+    pub then_statements: Box<Spanned<Ast<'src>>>,
+    pub else_statements: Option<Box<Spanned<Ast<'src>>>>,
 }
 #[derive(Debug)]
 pub struct ReturnStatement<'src> {

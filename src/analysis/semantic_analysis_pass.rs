@@ -68,7 +68,10 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
 
     fn visit_if_statement(&mut self, _: AstHandle, node: &'ast IfStatement<'ast>, _: Span) -> T {
         self.visit(&node.condition);
-        self.visit(&node.statements);
+        self.visit(&node.then_statements);
+        if let Some(else_statements) = node.else_statements.as_ref() {
+            self.visit(else_statements);
+        }
         T::default()
     }
 

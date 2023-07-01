@@ -208,7 +208,10 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             }
             _ => {}
         }
-        self.visit(&node.statements);
+        self.visit(&node.then_statements);
+        if let Some(else_statements) = &node.else_statements {
+            self.visit(else_statements);
+        }
         Type::Void
     }
 

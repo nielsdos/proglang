@@ -62,6 +62,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
 
     let keyword_or_identifier = text::ascii::ident().map(|ident| match ident {
         "if" => Token::If,
+        "else" => Token::Else,
         "for" => Token::For,
         "while" => Token::While,
         "do" => Token::Do,

@@ -209,7 +209,11 @@ impl<'ctx> CodeGenInner<'ctx> {
         self.emit_instructions(body, &function_context, codegen);
 
         if function_context.is_bb_unterminated() {
-            function_context.builder.build_return(None);
+            if function_info.return_type() == Type::Void {
+                function_context.builder.build_return(None);
+            } else {
+                function_context.builder.build_unreachable();
+            }
         }
 
         if !function_value.verify(true) {
@@ -373,22 +377,38 @@ impl<'ctx> CodeGenInner<'ctx> {
                     }
                 }
             }
-            Ast::IfStatement(IfStatement { condition, statements }) => {
+            Ast::IfStatement(IfStatement { condition, then_statements, else_statements }) => {
                 let condition_value = self.emit_instructions_with_casts(condition, function_context, codegen);
 
-                let then_block = codegen.context.0.append_basic_block(function_context.function_value, "then");
-                let else_block = codegen.context.0.append_basic_block(function_context.function_value, "after_if");
+                let true_block = codegen.context.0.append_basic_block(function_context.function_value, "then");
+                let after_if_block = codegen.context.0.append_basic_block(function_context.function_value, "after_if");
+                let false_block = if else_statements.is_none() {
+                    after_if_block
+                } else {
+                    codegen.context.0.append_basic_block(function_context.function_value, "else")
+                };
 
-                function_context.builder.build_conditional_branch(condition_value.into_int_value(), then_block, else_block);
+                function_context.builder.build_conditional_branch(condition_value.into_int_value(), true_block, false_block);
 
-                function_context.builder.position_at_end(then_block);
-                self.emit_instructions(statements, function_context, codegen);
-
+                function_context.builder.position_at_end(true_block);
+                self.emit_instructions(then_statements, function_context, codegen);
                 if function_context.is_bb_unterminated() {
-                    function_context.builder.build_unconditional_branch(else_block);
+                    function_context.builder.build_unconditional_branch(after_if_block);
                 }
 
-                function_context.builder.position_at_end(else_block);
+                if let Some(else_statements) = else_statements {
+                    function_context.builder.position_at_end(false_block);
+                    self.emit_instructions(else_statements, function_context, codegen);
+                    if function_context.is_bb_unterminated() {
+                        function_context.builder.build_unconditional_branch(after_if_block);
+                    }
+                }
+
+                if function_context.is_bb_unterminated() {
+                    function_context.builder.build_unconditional_branch(after_if_block);
+                }
+
+                function_context.builder.position_at_end(after_if_block);
 
                 None
             }
