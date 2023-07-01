@@ -78,6 +78,8 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
         _ => Token::Identifier(ident),
     });
 
+    let comment = just('#').padded_by(text::inline_whitespace()).then(any().and_is(text::newline().not()).repeated());
+
     let token = choice((dbl, int, comma, parens, multi_operator, compound_assignment, single_operator, keyword_or_identifier));
 
     let block = recursive(|block| {
@@ -91,16 +93,21 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
         let tokens_stop = tokens_base
             .clone()
             .collect::<Vec<TokenTree>>()
+            .then_ignore(comment.or_not())
             .then(text::newline().to(Token::StatementEnd).map_with_span(|token, span: Span| (token, Span::new(span.start, span.end - 1))))
-            .map(|(mut tree, end_token)| {
-                tree.push(TokenTree::Leaf(end_token));
-                tree
+            .map(|(mut before_end_token, end_token)| {
+                before_end_token.push(TokenTree::Leaf(end_token));
+                before_end_token
             });
-        let empty = text::newline().ignored().map(|_| vec![]);
-        let new_block = tokens_base.collect::<Vec<TokenTree>>().then(just(':').then(text::newline())).then(block).map(|((mut line, _), block)| {
-            line.push(TokenTree::Tree(block));
-            line
-        });
+        let empty = comment.or_not().ignore_then(text::newline()).map(|_| vec![]);
+        let new_block = tokens_base
+            .collect::<Vec<TokenTree>>()
+            .then(just(':').then_ignore(comment.or_not()).then(text::newline()))
+            .then(block)
+            .map(|((mut line, _), block)| {
+                line.push(TokenTree::Tree(block));
+                line
+            });
 
         text::inline_whitespace()
             .count()
