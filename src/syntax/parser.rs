@@ -1,7 +1,7 @@
 // Based on the sample code from https://github.com/zesterer/chumsky/blob/main/examples/nano_rust.rs
 
 use crate::syntax::ast::{
-    Assignment, Ast, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
+    Assignment, Ast, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
     UnaryOperationKind,
 };
 use crate::syntax::lexer::lexer;
@@ -36,7 +36,7 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
     recursive(|expression| {
         let literal = select! {
             Token::LiteralInt(int) => Ast::LiteralInt(LiteralInt(int)),
-            Token::LiteralDouble(dbl) => Ast::LiteralDouble(LiteralDouble(dbl)),
+            Token::LiteralFloat(dbl) => Ast::LiteralFloat(LiteralFloat(dbl)),
             Token::LiteralBool(dbl) => Ast::LiteralBool(LiteralBool(dbl)),
         };
 
@@ -159,7 +159,7 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
 
 fn parse_type<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Type, ParserExtra<'tokens, 'src>> {
     let ty_name = select! {
-        Token::Identifier("double") => Type::Double,
+        Token::Identifier("float") => Type::Double,
         Token::Identifier("int") => Type::Int,
         Token::Identifier("bool") => Type::Bool,
     };

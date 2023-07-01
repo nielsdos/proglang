@@ -1,5 +1,5 @@
 use crate::syntax::ast::{
-    Assignment, Ast, AstHandle, BinaryOperation, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
+    Assignment, Ast, AstHandle, BinaryOperation, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
 };
 use crate::syntax::span::{Span, Spanned};
 
@@ -8,7 +8,7 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
         let handle = node.0.as_handle();
         match &node.0 {
             Ast::LiteralInt(inner) => self.visit_literal_int(handle, inner, node.1),
-            Ast::LiteralDouble(inner) => self.visit_literal_double(handle, inner, node.1),
+            Ast::LiteralFloat(inner) => self.visit_literal_double(handle, inner, node.1),
             Ast::LiteralBool(inner) => self.visit_literal_bool(handle, inner, node.1),
             Ast::Identifier(inner) => self.visit_identifier(handle, inner, node.1),
             Ast::BinaryOperation(inner) => self.visit_binary_operation(handle, inner, node.1),
@@ -26,7 +26,7 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
         T::default()
     }
 
-    fn visit_literal_double(&mut self, _: AstHandle, _: &'ast LiteralDouble, _: Span) -> T {
+    fn visit_literal_double(&mut self, _: AstHandle, _: &'ast LiteralFloat, _: Span) -> T {
         T::default()
     }
 

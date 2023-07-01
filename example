@@ -1,4 +1,4 @@
-fn test_double() -> double:
+fn test_double() -> float:
     return 3.0//2
 fn test_int(int x, int y) -> int:
 	x = x

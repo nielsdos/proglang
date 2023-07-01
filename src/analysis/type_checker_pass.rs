@@ -2,7 +2,7 @@ use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::types::{SemanticErrorList, UniqueFunctionIdentifier};
 use crate::syntax::ast::Ast;
 use crate::syntax::ast::{
-    Assignment, AstHandle, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
+    Assignment, AstHandle, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
 };
 use crate::syntax::span::Span;
 use crate::types::function_info::{FunctionInfo, VariableUpdateError};
@@ -48,7 +48,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         Type::Int
     }
 
-    fn visit_literal_double(&mut self, handle: AstHandle, _: &'ast LiteralDouble, _: Span) -> Type {
+    fn visit_literal_double(&mut self, handle: AstHandle, _: &'ast LiteralFloat, _: Span) -> Type {
         self.store_ast_type(handle, Type::Double);
         Type::Double
     }

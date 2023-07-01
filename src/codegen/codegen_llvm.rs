@@ -1,7 +1,7 @@
 use crate::analysis::semantic_analysis::SemanticAnalyser;
 use crate::analysis::types::UniqueFunctionIdentifier;
 use crate::syntax::ast::{
-    Assignment, Ast, AstHandle, BinaryOperation, BinaryOperationKind, Identifier, IfStatement, LiteralBool, LiteralDouble, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
+    Assignment, Ast, AstHandle, BinaryOperation, BinaryOperationKind, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
     UnaryOperationKind,
 };
 use crate::syntax::span::Spanned;
@@ -389,7 +389,7 @@ impl<'ctx> CodeGenInner<'ctx> {
             }
             Ast::LiteralInt(LiteralInt(value)) => Some(codegen.int_type.const_int(*value as u64, false).into()),
             Ast::LiteralBool(LiteralBool(bool)) => Some(codegen.bool_type.const_int(if *bool { 1 } else { 0 }, false).into()),
-            Ast::LiteralDouble(LiteralDouble(value)) => Some(codegen.double_type.const_float(*value).into()),
+            Ast::LiteralFloat(LiteralFloat(value)) => Some(codegen.double_type.const_float(*value).into()),
             Ast::Assignment(Assignment(name, expression)) => {
                 let variable = function_context.variables.get(name).expect("variable should exist");
                 let expression_value = self.emit_instructions(expression, function_context, codegen).expect("expression should have a value");

@@ -50,7 +50,7 @@ impl UnaryOperationKind {
 #[derive(Debug)]
 pub struct LiteralInt(pub i64);
 #[derive(Debug)]
-pub struct LiteralDouble(pub f64);
+pub struct LiteralFloat(pub f64);
 #[derive(Debug)]
 pub struct LiteralBool(pub bool);
 #[derive(Debug)]
@@ -83,7 +83,7 @@ pub struct ReturnStatement<'src> {
 #[derive(Debug)]
 pub enum Ast<'src> {
     LiteralInt(LiteralInt),
-    LiteralDouble(LiteralDouble),
+    LiteralFloat(LiteralFloat),
     LiteralBool(LiteralBool),
     Identifier(Identifier<'src>),
     BinaryOperation(BinaryOperation<'src>),

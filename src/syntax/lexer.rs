@@ -31,7 +31,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
         .slice()
         .then(just('.'))
         .then(text::digits(10).slice())
-        .map_slice(|x| Token::LiteralDouble(f64::from_str(x).unwrap()));
+        .map_slice(|x| Token::LiteralFloat(f64::from_str(x).unwrap()));
     let int = text::int(10).from_str().unwrapped().map(Token::LiteralInt);
 
     let multi_operator = choice((
