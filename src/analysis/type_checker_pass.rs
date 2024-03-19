@@ -153,20 +153,19 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
 
     fn visit_statement_list(&mut self, _: AstHandle, node: &'ast StatementList<'ast>, _: Span) -> Type {
         let mut last_return_span: Option<Span> = None;
-        let mut has_warned_about_return = false;
+        let mut found_dead_code_after_return = false;
         for statement in &node.0 {
             let span = statement.1;
             self.visit(statement);
             if let Some(last_return_span) = &last_return_span {
-                if !has_warned_about_return {
-                    // TODO: relax to warning? take into account codegen then: we may not generate instructions after a terminator!
+                if !found_dead_code_after_return {
                     self.semantic_error_list.report_error_with_note(
                         span,
                         "therefore, this statement and any following statements in this block, are unreachable".to_string(),
                         *last_return_span,
-                        "this is the last executed statement in this block".to_string(),
+                        "this is the last non-dead statement in this block".to_string(),
                     );
-                    has_warned_about_return = true;
+                    found_dead_code_after_return = true;
                 }
             } else if matches!(statement, (Ast::ReturnStatement(_), _)) {
                 last_return_span = Some(span);
