@@ -46,7 +46,7 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
 
         let atom = literal
             .or(identifier)
-            .map_with_span(|ast, span: Span| (ast, span))
+            .map_with(|ast, extra| (ast, extra.span()))
             .or(expression.clone().delimited_by(just(Token::LeftParen), just(Token::RightParen)));
 
         let map_binary_operation = |lhs: Spanned<Ast<'src>>, (op, rhs): (BinaryOperationKind, Spanned<Ast<'src>>)| {
@@ -59,11 +59,14 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
                 let unary_operation = just(Token::Operator('-'))
                     .to(UnaryOperationKind::Minus)
                     .or(just(Token::Operator('+')).to(UnaryOperationKind::Plus))
-                    .map_with_span(|kind, span: Span| (kind, span))
+                    .map_with(|kind, extra| {
+                        let span: Span = extra.span();
+                        (kind, span)
+                    })
                     .then(unary_expression.clone())
                     .map(|(kind, rhs)| {
-                        let span = kind.1.start..rhs.1.end;
-                        (Ast::UnaryOperation(UnaryOperation(kind.0, Box::new(rhs))), span.into())
+                        let span: Span = (kind.1.start..rhs.1.end).into();
+                        (Ast::UnaryOperation(UnaryOperation(kind.0, Box::new(rhs))), span)
                     });
 
                 let power = atom
@@ -72,7 +75,7 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
 
                 unary_operation.or(power)
             },
-        );
+        ).boxed();
 
         let product_or_divide = unary_expression.clone().foldl(
             choice((
@@ -131,7 +134,7 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
                     .then_ignore(just(Token::BlockEnd))
                     .or_not(),
             )
-            .map_with_span(|(((_, condition), then_statements), else_statements), span: Span| (condition, then_statements, else_statements, span))
+            .map_with(|(((_, condition), then_statements), else_statements), extra| (condition, then_statements, else_statements, extra.span()))
             .map(|(condition, then_statements, else_statements, span)| {
                 (
                     Ast::IfStatement(IfStatement {
@@ -147,12 +150,12 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
             .then_ignore(just(Token::Operator('=')))
             .then(parse_expression())
             .then_ignore(just(Token::StatementEnd))
-            .map_with_span(|(ident, expr), span: Span| (ident, expr, span))
+            .map_with(|(ident, expr), extra| (ident, expr, extra.span()))
             .map(|(ident, expr, span)| (Ast::Assignment(Assignment(ident, Box::new(expr))), span));
 
         let return_ = just(Token::Return)
             .ignore_then(parse_expression().or_not())
-            .map_with_span(|expression, span| (expression, span))
+            .map_with(|expression, extra| (expression, extra.span()))
             .then_ignore(just(Token::StatementEnd))
             .map(|(expression, span)| (Ast::ReturnStatement(ReturnStatement { value: expression.map(Box::new) }), span));
 
@@ -182,13 +185,13 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
     let return_type = just(Token::Arrow).ignore_then(parse_type());
 
     just(Token::Fn)
-        .map_with_span(|_, span: Span| span)
+        .map_with(|_, extra| extra.span())
         .then(identifier)
         .then_ignore(just(Token::LeftParen))
         .then(
             parse_type()
                 .then(identifier)
-                .map_with_span(|(ty, ident), span| (ArgumentInfo::new(ident, ty), span))
+                .map_with(|(ty, ident), extra| (ArgumentInfo::new(ident, ty), extra.span()))
                 .separated_by(just(Token::Comma))
                 .allow_trailing()
                 .collect::<Vec<_>>(),
@@ -198,7 +201,7 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
         .then_ignore(just(Token::BlockStart))
         .then(parse_statement_list())
         .then_ignore(just(Token::BlockEnd))
-        .map(|((((fn_span, fn_name), args), return_type), statements)| {
+        .map(move |((((fn_span, fn_name), args), return_type), statements)| {
             let span = fn_span.start..statements.1.end;
             let declaration = FunctionDeclaration {
                 name: fn_name,

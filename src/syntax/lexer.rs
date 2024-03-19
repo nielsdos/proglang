@@ -28,10 +28,10 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
     // TODO: these two can fail, handle them gracefully
     // TODO: https://github.com/zesterer/chumsky/pull/462
     let dbl = text::int(10)
-        .slice()
         .then(just('.'))
-        .then(text::digits(10).slice())
-        .map_slice(|x| Token::LiteralFloat(f64::from_str(x).unwrap()));
+        .then(text::digits(10))
+        .to_slice()
+        .map(|x| Token::LiteralFloat(f64::from_str(x).unwrap()));
     let int = text::int(10).from_str().unwrapped().map(Token::LiteralInt);
 
     let multi_operator = choice((
@@ -86,7 +86,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
     let block = recursive(|block| {
         let indentation = text::inline_whitespace().configure(|cfg, &parent_indentation| cfg.exactly(parent_indentation));
         let tokens_base = token
-            .map_with_span(|token, span| (token, span))
+            .map_with(|token, extra| (token, extra.span()))
             .padded_by(text::inline_whitespace())
             .map(TokenTree::Leaf)
             .repeated()
@@ -95,7 +95,10 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
             .clone()
             .collect::<Vec<TokenTree>>()
             .then_ignore(comment.or_not())
-            .then(text::newline().to(Token::StatementEnd).map_with_span(|token, span: Span| (token, Span::new(span.start, span.end - 1))))
+            .then(text::newline().to(Token::StatementEnd).map_with(|token, extra| {
+                let span: Span = extra.span();
+                (token, Span::new(span.start, span.end - 1))
+            }))
             .map(|(mut before_end_token, end_token)| {
                 before_end_token.push(TokenTree::Leaf(end_token));
                 before_end_token
