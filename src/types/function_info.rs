@@ -1,3 +1,4 @@
+use std::collections::hash_map::Entry;
 use crate::syntax::ast::Ast;
 use crate::syntax::span::Spanned;
 use crate::types::type_system::Type;
@@ -59,16 +60,18 @@ impl<'ast> FunctionInfo<'ast> {
     }
 
     pub fn update_variable_type(&mut self, handle: Handle, ty: Type) -> Result<(), VariableUpdateError> {
-        // TODO: avoid clone?
-        let old_type = self.variable_types.insert(handle, ty.clone());
-        if let Some(old_type) = old_type {
-            if ty == old_type {
-                Ok(())
-            } else {
-                Err(VariableUpdateError::TypeMismatch(old_type))
+        match self.variable_types.entry(handle) {
+            Entry::Occupied(entry) => {
+                if *entry.get() == ty {
+                    Ok(())
+                } else {
+                    Err(VariableUpdateError::TypeMismatch(entry.get().clone()))
+                }
             }
-        } else {
-            Ok(())
+            Entry::Vacant(entry) => {
+                entry.insert(ty);
+                Ok(())
+            }
         }
     }
 
