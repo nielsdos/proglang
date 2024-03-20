@@ -1,4 +1,11 @@
 use std::fmt::{Display, Formatter};
+use std::rc::Rc;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FunctionType {
+    pub return_type: Type,
+    pub arg_types: Vec<Type>,
+}
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Type {
@@ -6,6 +13,7 @@ pub enum Type {
     Double,
     Bool,
     Void,
+    Function(Rc<FunctionType>),
     #[default]
     Error,
 }
@@ -26,6 +34,16 @@ impl Display for Type {
             Type::Bool => write!(f, "bool"),
             Type::Void => write!(f, "void"),
             Type::Error => write!(f, "?"),
+            Type::Function(func) => {
+                write!(f, "fn(")?;
+                for (i, arg) in func.arg_types.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", arg)?;
+                }
+                write!(f, ") -> {}", func.return_type)
+            }
         }
     }
 }
