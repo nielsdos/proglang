@@ -1,5 +1,5 @@
 use crate::analysis::semantic_analysis::SemanticAnalyser;
-use crate::analysis::types::UniqueFunctionIdentifier;
+use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
 use crate::syntax::ast::{
     Assignment, Ast, AstHandle, BinaryOperation, BinaryOperationKind, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
     UnaryOperationKind,

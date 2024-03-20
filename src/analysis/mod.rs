@@ -3,4 +3,5 @@ pub mod return_check_pass;
 pub mod semantic_analysis;
 pub mod semantic_analysis_pass;
 pub mod type_checker_pass;
-pub mod types;
+pub mod semantic_error;
+pub mod unique_function_identifier;

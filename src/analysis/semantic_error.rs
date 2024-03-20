@@ -1,8 +1,5 @@
 use crate::syntax::span::Span;
 
-#[derive(Debug, Eq, Hash, PartialEq)]
-pub struct UniqueFunctionIdentifier<'ast>(pub &'ast str);
-
 pub struct SemanticErrorNote {
     error_text: String,
     span: Span,
@@ -16,12 +13,6 @@ pub struct SemanticError {
 
 #[derive(Default)]
 pub struct SemanticErrorList(Vec<SemanticError>);
-
-impl<'f> UniqueFunctionIdentifier<'f> {
-    pub fn as_str(&self) -> &'f str {
-        self.0
-    }
-}
 
 impl SemanticError {
     pub fn new(error_text: String, span: Span) -> Self {

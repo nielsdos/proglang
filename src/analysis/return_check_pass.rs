@@ -1,5 +1,5 @@
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
-use crate::analysis::types::SemanticErrorList;
+use crate::analysis::semantic_error::SemanticErrorList;
 use crate::syntax::ast::{AstHandle, FunctionDeclaration, IfStatement, ReturnStatement, StatementList};
 use crate::syntax::span::Span;
 use crate::types::type_system::Type;

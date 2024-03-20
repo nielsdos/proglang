@@ -1,5 +1,6 @@
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
-use crate::analysis::types::{SemanticErrorList, UniqueFunctionIdentifier};
+use crate::analysis::semantic_error::SemanticErrorList;
+use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
 use crate::syntax::ast::{AstHandle, FunctionDeclaration};
 use crate::syntax::span::Span;
 use crate::types::function_info::FunctionInfo;

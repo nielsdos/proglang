@@ -1,5 +1,5 @@
 use crate::analysis::semantic_analysis::SemanticAnalyser;
-use crate::analysis::types::UniqueFunctionIdentifier;
+use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
 use crate::codegen::codegen_llvm::{CodeGenContext, CodeGenLLVM};
 use crate::types::function_info::FunctionInfo;
 
