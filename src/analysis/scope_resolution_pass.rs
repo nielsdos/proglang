@@ -89,7 +89,6 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, ()> for ScopeResolutionPass<'ast, 'f> 
 
     fn visit_declaration(&mut self, handle: Handle, node: &'ast Assignment<'ast>, span: Span) {
         self.visit(&node.1);
-        // TODO: improve span?
         self.declare(node.0, handle, span);
     }
 
