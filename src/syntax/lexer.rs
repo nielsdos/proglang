@@ -27,11 +27,7 @@ impl<T> Container<Vec<T>> for FlatVec<T> {
 pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra::Err<Rich<'src, char, Span>>> {
     // TODO: these two can fail, handle them gracefully
     // TODO: https://github.com/zesterer/chumsky/pull/462
-    let dbl = text::int(10)
-        .then(just('.'))
-        .then(text::digits(10))
-        .to_slice()
-        .map(|x| Token::LiteralFloat(f64::from_str(x).unwrap()));
+    let dbl = text::int(10).then(just('.')).then(text::digits(10)).to_slice().map(|x| Token::LiteralFloat(f64::from_str(x).unwrap()));
     let int = text::int(10).from_str().unwrapped().map(Token::LiteralInt);
 
     let multi_operator = choice((

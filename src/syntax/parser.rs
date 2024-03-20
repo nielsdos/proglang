@@ -1,8 +1,8 @@
 // Based on the sample code from https://github.com/zesterer/chumsky/blob/main/examples/nano_rust.rs
 
 use crate::syntax::ast::{
-    Assignment, Ast, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
-    UnaryOperationKind,
+    Assignment, Ast, BinaryOperation, BinaryOperationKind, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList,
+    UnaryOperation, UnaryOperationKind,
 };
 use crate::syntax::lexer::lexer;
 use crate::syntax::span::{Span, Spanned};
@@ -44,7 +44,24 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
             Token::Identifier(ident) => Ast::Identifier(Identifier(ident)),
         };
 
+        let call_expression = identifier
+            .map_with(|ast, extra| (ast, extra.span()))
+            .then(
+                expression
+                    .clone()
+                    .map(|expr: (Ast<'src>, _)| expr)
+                    .separated_by(just(Token::Comma))
+                    .allow_trailing()
+                    .collect::<Vec<_>>()
+                    .delimited_by(just(Token::LeftParen), just(Token::RightParen)),
+            )
+            .map(|(identifier, args)| {
+                println!("identifier={:?} args={:?}", identifier, args);
+                Ast::FunctionCall(FunctionCall { callee: Box::new(identifier), args })
+            });
+
         let atom = literal
+            .or(call_expression)
             .or(identifier)
             .map_with(|ast, extra| (ast, extra.span()))
             .or(expression.clone().delimited_by(just(Token::LeftParen), just(Token::RightParen)));
@@ -75,7 +92,8 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
 
                 unary_operation.or(power)
             },
-        ).boxed();
+        )
+        .boxed();
 
         let product_or_divide = unary_expression.clone().foldl(
             choice((

@@ -80,6 +80,11 @@ pub struct IfStatement<'src> {
 pub struct ReturnStatement<'src> {
     pub value: Option<Box<Spanned<Ast<'src>>>>,
 }
+#[derive(Debug)]
+pub struct FunctionCall<'ctx> {
+    pub callee: Box<Spanned<Ast<'ctx>>>,
+    pub args: Vec<Spanned<Ast<'ctx>>>,
+}
 
 #[derive(Debug)]
 pub enum Ast<'src> {
@@ -94,6 +99,7 @@ pub enum Ast<'src> {
     FunctionDeclaration(FunctionDeclaration<'src>),
     IfStatement(IfStatement<'src>),
     ReturnStatement(ReturnStatement<'src>),
+    FunctionCall(FunctionCall<'src>),
     /// Placeholder, useful for development purposes.
     Todo,
 }

@@ -66,7 +66,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             ty
         } else {
             self.semantic_error_list
-                .report_error(span, format!("the variable '{}' was not found in the current active scope", node.0));
+                .report_error(span, format!("the identifier '{}' was not found in the current scope", node.0));
             // TODO: probably we need real lexical scoping...
             Type::Error
         }
@@ -240,6 +240,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
                 format!("function '{}' must return a value of type '{}', but this returns nothing", function_name, function_return_type),
             );
         }
+        // TODO: what happens if we return a value in a void function?
         Type::Void
     }
 }
