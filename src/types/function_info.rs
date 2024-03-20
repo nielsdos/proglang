@@ -33,8 +33,8 @@ impl<'ast> ArgumentInfo<'ast> {
     }
 
     #[inline]
-    pub fn ty(&self) -> Type {
-        self.ty
+    pub fn ty(&self) -> &Type {
+        &self.ty
     }
 }
 
@@ -53,7 +53,8 @@ impl<'ast> FunctionInfo<'ast> {
     }
 
     pub fn update_variable_type(&mut self, identifier: &'ast str, ty: Type) -> Result<(), VariableUpdateError> {
-        let old_type = self.variable_types.insert(identifier, ty);
+        // TODO: avoid clone?
+        let old_type = self.variable_types.insert(identifier, ty.clone());
         if let Some(old_type) = old_type {
             if ty == old_type {
                 Ok(())
@@ -75,8 +76,8 @@ impl<'ast> FunctionInfo<'ast> {
     }
 
     #[inline]
-    pub fn return_type(&self) -> Type {
-        self.return_type
+    pub fn return_type(&self) -> &Type {
+        &self.return_type
     }
 
     #[inline]

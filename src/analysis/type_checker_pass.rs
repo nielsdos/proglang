@@ -61,15 +61,19 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
     }
 
     fn visit_identifier(&mut self, handle: AstHandle, node: &'ast Identifier<'ast>, span: Span) -> Type {
-        if let Some(&ty) = self.current_function_scope().expect("must be in function context").query_variable_type(node.0) {
-            self.store_ast_type(handle, ty);
-            ty
+        let ty = if let Some(ty) = self.current_function_scope().expect("must be in function context").query_variable_type(node.0) {
+            ty.clone()
         } else {
-            self.semantic_error_list
-                .report_error(span, format!("the identifier '{}' was not found in the current scope", node.0));
+            self.semantic_error_list.report_error(span, format!("the identifier '{}' was not found in the current scope", node.0));
             // TODO: probably we need real lexical scoping...
             Type::Error
+        };
+
+        if ty != Type::Error {
+            self.store_ast_type(handle, ty.clone());
         }
+
+        ty
     }
 
     fn visit_binary_operation(&mut self, handle: AstHandle, node: &'ast BinaryOperation<'ast>, _: Span) -> Type {
@@ -107,7 +111,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         }
 
         let result_type = if node.1.is_comparison_op() { Type::Bool } else { target_type };
-        self.store_ast_type(handle, result_type);
+        self.store_ast_type(handle, result_type.clone());
         result_type
     }
 
@@ -131,13 +135,13 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
                 Type::Error
             };
         }
-        self.store_ast_type(handle, rhs_type);
+        self.store_ast_type(handle, rhs_type.clone());
         rhs_type
     }
 
     fn visit_assignment(&mut self, _: AstHandle, node: &'ast Assignment<'ast>, span: Span) -> Type {
         let rhs_type = self.visit(&node.1);
-        match self.current_function_scope_mut().expect("must be in function context").update_variable_type(node.0, rhs_type) {
+        match self.current_function_scope_mut().expect("must be in function context").update_variable_type(node.0, rhs_type.clone()) {
             Err(VariableUpdateError::TypeMismatch(old_type)) => {
                 self.semantic_error_list.report_error(
                     span,
@@ -183,7 +187,9 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             if scope.query_variable_type(arg.0.name()).is_some() {
                 errors.push((arg.1, format!("argument '{}' is declared more than once", arg.0.name())));
             } else {
-                scope.update_variable_type(arg.0.name(), arg.0.ty()).expect("cannot fail because the variable did not exist yet");
+                scope
+                    .update_variable_type(arg.0.name(), arg.0.ty().clone())
+                    .expect("cannot fail because the variable did not exist yet");
             }
         }
         for error in errors.into_iter() {
@@ -217,15 +223,15 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
 
     fn visit_return_statement(&mut self, _: AstHandle, node: &'ast ReturnStatement<'ast>, span: Span) -> Type {
         // TODO: implicit casts?
-        let current_function = self.current_function_scope().expect("must be in function context");
-        let function_return_type = current_function.return_type();
         let function_name = self.current_function.as_ref().unwrap().0;
         if let Some(value) = &node.value {
             let returned_type = self.visit(value);
             if returned_type.is_error() {
                 return Type::Error;
             }
-            if returned_type != function_return_type {
+            let current_function = self.current_function_scope().expect("must be in function context");
+            let function_return_type = current_function.return_type();
+            if returned_type != *function_return_type {
                 self.semantic_error_list.report_error(
                     span,
                     format!(
@@ -234,11 +240,15 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
                     ),
                 );
             }
-        } else if function_return_type != Type::Void {
-            self.semantic_error_list.report_error(
-                span,
-                format!("function '{}' must return a value of type '{}', but this returns nothing", function_name, function_return_type),
-            );
+        } else {
+            let current_function = self.current_function_scope().expect("must be in function context");
+            let function_return_type = current_function.return_type();
+            if *function_return_type != Type::Void {
+                self.semantic_error_list.report_error(
+                    span,
+                    format!("function '{}' must return a value of type '{}', but this returns nothing", function_name, function_return_type),
+                );
+            }
         }
         // TODO: what happens if we return a value in a void function?
         Type::Void

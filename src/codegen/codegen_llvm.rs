@@ -170,15 +170,15 @@ impl<'ctx> CodeGenInner<'ctx> {
             .iter()
             .map(|arg| {
                 let arg = &arg.0;
-                let ty = codegen.type_to_llvm_type[&arg.ty()];
+                let ty = codegen.type_to_llvm_type[arg.ty()];
                 BasicMetadataTypeEnum::from(ty)
             })
             .collect::<SmallVec<[BasicMetadataTypeEnum<'ctx>; 4]>>();
 
-        let function_type = if function_info.return_type() == Type::Void {
+        let function_type = if *function_info.return_type() == Type::Void {
             codegen.void_type.fn_type(arg_types.as_slice(), false)
         } else {
-            codegen.type_to_llvm_type[&function_info.return_type()].fn_type(arg_types.as_slice(), false)
+            codegen.type_to_llvm_type[function_info.return_type()].fn_type(arg_types.as_slice(), false)
         };
 
         let function_value = self.module.add_function(name.as_str(), function_type, None);
@@ -214,7 +214,7 @@ impl<'ctx> CodeGenInner<'ctx> {
         self.emit_instructions(body, &function_context, codegen);
 
         if function_context.is_bb_unterminated() {
-            if function_info.return_type() == Type::Void {
+            if *function_info.return_type() == Type::Void {
                 function_context.builder.build_return(None);
             } else {
                 function_context.builder.build_unreachable();

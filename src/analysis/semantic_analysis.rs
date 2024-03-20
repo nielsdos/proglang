@@ -1,8 +1,8 @@
 use crate::analysis::function_collector_pass::FunctionCollectorPass;
 use crate::analysis::return_check_pass::ReturnCheckPass;
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
-use crate::analysis::type_checker_pass::TypeCheckerPass;
 use crate::analysis::semantic_error::{SemanticError, SemanticErrorList};
+use crate::analysis::type_checker_pass::TypeCheckerPass;
 use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
 use crate::syntax::ast::{Ast, AstHandle};
 use crate::syntax::span::Spanned;
@@ -68,7 +68,7 @@ impl<'ast> SemanticAnalyser<'ast> {
     }
 
     pub fn function_list_iter(&self) -> impl Iterator<Item = (&'_ UniqueFunctionIdentifier<'_>, &'_ FunctionInfo<'_>)> {
-        self.function_map.iter().map(|(k, v)| (k, v))
+        self.function_map.iter()
     }
 
     pub fn implicit_cast_entry(&self, handle: AstHandle) -> Option<&ImplicitCast> {

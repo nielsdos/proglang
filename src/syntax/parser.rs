@@ -247,7 +247,7 @@ pub fn parse(filename: Rc<str>, input: &str, options: ParserOptions) -> Option<S
 
     let (parse_errors, ast) = if let Some(token_tree) = token_tree {
         // Convert token tree into token stream.
-        let mut queue = VecDeque::from_iter(token_tree.into_iter());
+        let mut queue = VecDeque::from_iter(token_tree);
         let iterator = iter::from_fn(move || loop {
             let token_tree = queue.pop_front()?;
             match token_tree {
