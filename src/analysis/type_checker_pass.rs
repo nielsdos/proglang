@@ -198,14 +198,6 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         let scope = self.current_function_scope_mut().expect("just entered a function");
         let mut errors: SmallVec<[(Span, String); 4]> = SmallVec::new();
         for arg in &node.args {
-            // TODO: validate redeclaration of arguments in scope resolution pass!
-            /*if scope.query_variable_type(arg.0.name()).is_some() {
-                errors.push((arg.1, format!("argument '{}' is declared more than once", arg.0.name())));
-            } else {
-                scope
-                    .update_variable_type(arg.0.name(), arg.0.ty().clone())
-                    .expect("cannot fail because the variable did not exist yet");
-            }*/
             scope
                 .update_variable_type(arg.0.as_handle(), arg.0.ty().clone())
                 .expect("cannot fail because the variable did not exist yet");
