@@ -1,4 +1,4 @@
-use crate::syntax::ast::Ast;
+use crate::syntax::ast::{Ast, AstHandle};
 use crate::syntax::span::Spanned;
 use crate::types::type_system::Type;
 use std::collections::HashMap;
@@ -12,7 +12,7 @@ pub struct ArgumentInfo<'ast> {
 #[derive(Debug)]
 pub struct FunctionInfo<'ast> {
     body: &'ast Spanned<Ast<'ast>>,
-    variable_types: HashMap<&'ast str, Type>,
+    variable_types: HashMap<AstHandle, Type>,
     args: &'ast [Spanned<ArgumentInfo<'ast>>],
     return_type: Type,
 }
@@ -36,6 +36,11 @@ impl<'ast> ArgumentInfo<'ast> {
     pub fn ty(&self) -> &Type {
         &self.ty
     }
+
+    // TODO: hacky?
+    pub fn as_handle(&self) -> AstHandle {
+        self as *const _ as AstHandle
+    }
 }
 
 impl<'ast> FunctionInfo<'ast> {
@@ -48,13 +53,13 @@ impl<'ast> FunctionInfo<'ast> {
         }
     }
 
-    pub fn query_variable_type(&self, identifier: &'ast str) -> Option<&Type> {
-        self.variable_types.get(identifier)
+    pub fn query_variable_type(&self, handle: AstHandle) -> Option<&Type> {
+        self.variable_types.get(&handle)
     }
 
-    pub fn update_variable_type(&mut self, identifier: &'ast str, ty: Type) -> Result<(), VariableUpdateError> {
+    pub fn update_variable_type(&mut self, handle: AstHandle, ty: Type) -> Result<(), VariableUpdateError> {
         // TODO: avoid clone?
-        let old_type = self.variable_types.insert(identifier, ty.clone());
+        let old_type = self.variable_types.insert(handle, ty.clone());
         if let Some(old_type) = old_type {
             if ty == old_type {
                 Ok(())
@@ -66,7 +71,7 @@ impl<'ast> FunctionInfo<'ast> {
         }
     }
 
-    pub fn variables(&self) -> impl Iterator<Item = (&'ast str, &Type)> {
+    pub fn variables(&self) -> impl Iterator<Item = (AstHandle, &Type)> {
         self.variable_types.iter().map(|(k, v)| (*k, v))
     }
 

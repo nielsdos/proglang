@@ -1,3 +1,4 @@
+use crate::analysis::scope_resolution_pass::ScopeReferenceMap;
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
 use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
@@ -16,6 +17,7 @@ pub(crate) struct TypeCheckerPass<'ast, 'f> {
     pub(crate) implicit_cast_table: HashMap<AstHandle, ImplicitCast>,
     pub(crate) current_function: Option<UniqueFunctionIdentifier<'ast>>,
     pub(crate) function_map: &'f mut HashMap<UniqueFunctionIdentifier<'ast>, FunctionInfo<'ast>>,
+    pub(crate) scope_reference_map: &'f ScopeReferenceMap,
     pub(crate) semantic_error_list: &'f mut SemanticErrorList,
 }
 
@@ -42,6 +44,10 @@ impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
         let old_value = self.type_table.insert(handle, ty);
         assert!(old_value.is_none());
     }
+
+    fn map_ast_handle_to_declarator(&self, handle: AstHandle) -> AstHandle {
+        *self.scope_reference_map.references.get(&handle).expect("scope resolution ensures this mapping exists")
+    }
 }
 
 impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
@@ -60,18 +66,15 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         Type::Bool
     }
 
-    fn visit_identifier(&mut self, handle: AstHandle, node: &'ast Identifier<'ast>, span: Span) -> Type {
-        let ty = if let Some(ty) = self.current_function_scope().expect("must be in function context").query_variable_type(node.0) {
+    fn visit_identifier(&mut self, handle: AstHandle, _: &'ast Identifier<'ast>, _: Span) -> Type {
+        let referenced_handle = self.map_ast_handle_to_declarator(handle);
+        let ty = if let Some(ty) = self.current_function_scope_mut().expect("just entered a function").query_variable_type(referenced_handle) {
             ty.clone()
         } else {
-            self.semantic_error_list.report_error(span, format!("the identifier '{}' was not found in the current scope", node.0));
-            // TODO: probably we need real lexical scoping...
-            Type::Error
+            return Type::Error;
         };
 
-        if ty != Type::Error {
-            self.store_ast_type(handle, ty.clone());
-        }
+        self.store_ast_type(handle, ty.clone());
 
         ty
     }
@@ -139,9 +142,11 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         rhs_type
     }
 
-    fn visit_assignment(&mut self, _: AstHandle, node: &'ast Assignment<'ast>, span: Span) -> Type {
+    fn visit_assignment(&mut self, handle: AstHandle, node: &'ast Assignment<'ast>, span: Span) -> Type {
+        let handle = self.map_ast_handle_to_declarator(handle);
+
         let rhs_type = self.visit(&node.1);
-        match self.current_function_scope_mut().expect("must be in function context").update_variable_type(node.0, rhs_type.clone()) {
+        match self.current_function_scope_mut().expect("must be in function context").update_variable_type(handle, rhs_type.clone()) {
             Err(VariableUpdateError::TypeMismatch(old_type)) => {
                 self.semantic_error_list.report_error(
                     span,
@@ -154,6 +159,15 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             }
             Ok(()) => rhs_type,
         }
+    }
+
+    fn visit_declaration(&mut self, handle: AstHandle, node: &'ast Assignment<'ast>, _: Span) -> Type {
+        let rhs_type = self.visit(&node.1);
+        self.current_function_scope_mut()
+            .expect("must be in function context")
+            .update_variable_type(handle, rhs_type.clone())
+            .expect("cannot fail because the variable did not exist yet");
+        rhs_type
     }
 
     fn visit_statement_list(&mut self, _: AstHandle, node: &'ast StatementList<'ast>, _: Span) -> Type {
@@ -184,13 +198,17 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         let scope = self.current_function_scope_mut().expect("just entered a function");
         let mut errors: SmallVec<[(Span, String); 4]> = SmallVec::new();
         for arg in &node.args {
-            if scope.query_variable_type(arg.0.name()).is_some() {
+            // TODO: validate redeclaration of arguments in scope resolution pass!
+            /*if scope.query_variable_type(arg.0.name()).is_some() {
                 errors.push((arg.1, format!("argument '{}' is declared more than once", arg.0.name())));
             } else {
                 scope
                     .update_variable_type(arg.0.name(), arg.0.ty().clone())
                     .expect("cannot fail because the variable did not exist yet");
-            }
+            }*/
+            scope
+                .update_variable_type(arg.0.as_handle(), arg.0.ty().clone())
+                .expect("cannot fail because the variable did not exist yet");
         }
         for error in errors.into_iter() {
             self.semantic_error_list.report_error(error.0, error.1);

@@ -14,6 +14,7 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
             Ast::BinaryOperation(inner) => self.visit_binary_operation(handle, inner, node.1),
             Ast::UnaryOperation(inner) => self.visit_unary_operation(handle, inner, node.1),
             Ast::Assignment(inner) => self.visit_assignment(handle, inner, node.1),
+            Ast::Declaration(inner) => self.visit_declaration(handle, inner, node.1),
             Ast::StatementList(inner) => self.visit_statement_list(handle, inner, node.1),
             Ast::FunctionDeclaration(inner) => self.visit_function_declaration(handle, inner, node.1),
             Ast::IfStatement(inner) => self.visit_if_statement(handle, inner, node.1),
@@ -51,6 +52,11 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
     }
 
     fn visit_assignment(&mut self, _: AstHandle, node: &'ast Assignment<'ast>, _: Span) -> T {
+        self.visit(&node.1);
+        T::default()
+    }
+
+    fn visit_declaration(&mut self, _: AstHandle, node: &'ast Assignment<'ast>, _: Span) -> T {
         self.visit(&node.1);
         T::default()
     }

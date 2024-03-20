@@ -65,4 +65,8 @@ impl SemanticErrorList {
     pub fn into_vec(self) -> Vec<SemanticError> {
         self.0
     }
+
+    pub fn has_errors(&self) -> bool {
+        !self.0.is_empty()
+    }
 }

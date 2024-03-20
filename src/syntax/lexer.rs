@@ -62,6 +62,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
         "for" => Token::For,
         "while" => Token::While,
         "do" => Token::Do,
+        "let" => Token::Let,
         "true" => Token::LiteralBool(true),
         "false" => Token::LiteralBool(false),
         "fn" => Token::Fn,
@@ -70,7 +71,6 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
         "prot" => Token::Prot,
         "priv" => Token::Priv,
         "class" => Token::Class,
-        "interface" => Token::Interface,
         "import" => Token::Import,
         _ => Token::Identifier(ident),
     });

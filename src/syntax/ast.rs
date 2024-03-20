@@ -95,6 +95,7 @@ pub enum Ast<'src> {
     BinaryOperation(BinaryOperation<'src>),
     UnaryOperation(UnaryOperation<'src>),
     Assignment(Assignment<'src>),
+    Declaration(Assignment<'src>),
     StatementList(StatementList<'src>),
     FunctionDeclaration(FunctionDeclaration<'src>),
     IfStatement(IfStatement<'src>),

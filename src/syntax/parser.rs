@@ -171,13 +171,21 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
             .map_with(|(ident, expr), extra| (ident, expr, extra.span()))
             .map(|(ident, expr, span)| (Ast::Assignment(Assignment(ident, Box::new(expr))), span));
 
+        let declaration = just(Token::Let)
+            .ignore_then(identifier)
+            .then_ignore(just(Token::Operator('=')))
+            .then(parse_expression())
+            .then_ignore(just(Token::StatementEnd))
+            .map_with(|(ident, expr), extra| (ident, expr, extra.span()))
+            .map(|(ident, expr, span)| (Ast::Declaration(Assignment(ident, Box::new(expr))), span));
+
         let return_ = just(Token::Return)
             .ignore_then(parse_expression().or_not())
             .map_with(|expression, extra| (expression, extra.span()))
             .then_ignore(just(Token::StatementEnd))
             .map(|(expression, span)| (Ast::ReturnStatement(ReturnStatement { value: expression.map(Box::new) }), span));
 
-        let statement = choice((assignment, if_check, return_));
+        let statement = choice((declaration, assignment, if_check, return_));
 
         statement.repeated().at_least(1).collect::<Vec<_>>().map(|list| {
             let span = compute_span_over_slice(&list);

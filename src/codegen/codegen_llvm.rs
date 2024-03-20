@@ -33,10 +33,10 @@ struct VariableInfo<'ctx> {
     ty: BasicTypeEnum<'ctx>,
 }
 
-struct CodeGenFunctionContext<'f, 'ctx> {
+struct CodeGenFunctionContext<'ctx> {
     builder: Builder<'ctx>,
     function_value: FunctionValue<'ctx>,
-    variables: HashMap<&'f str, VariableInfo<'ctx>>,
+    variables: HashMap<AstHandle, VariableInfo<'ctx>>,
 }
 
 struct CodeGenInner<'ctx> {
@@ -189,9 +189,9 @@ impl<'ctx> CodeGenInner<'ctx> {
 
         // Create memory locations for the local variables
         for (variable_name, variable_type) in function_info.variables() {
-            // TODO: default values maybe?
+            // Can't have a declaration without an assignment, so a default value is not necessary
             let variable_type = codegen.type_to_llvm_type[variable_type];
-            let variable_memory = builder.build_alloca(variable_type, variable_name);
+            let variable_memory = builder.build_alloca(variable_type, "var");
             variables.insert(
                 variable_name,
                 VariableInfo {
@@ -203,7 +203,7 @@ impl<'ctx> CodeGenInner<'ctx> {
 
         // Copy arguments to the function's scope
         for (index, arg) in function_info.args().iter().enumerate() {
-            let variable_memory = variables[arg.0.name()].ptr;
+            let variable_memory = variables[&arg.0.as_handle()].ptr;
             let arg_value = function_value.get_nth_param(index as u32).expect("argument should exist");
             builder.build_store(variable_memory, arg_value);
         }
@@ -227,11 +227,11 @@ impl<'ctx> CodeGenInner<'ctx> {
         }
     }
 
-    fn emit_implicit_cast_if_necessary<'ast>(
+    fn emit_implicit_cast_if_necessary(
         &self,
         handle: AstHandle,
         value: BasicValueEnum<'ctx>,
-        function_context: &CodeGenFunctionContext<'ast, 'ctx>,
+        function_context: &CodeGenFunctionContext<'ctx>,
         codegen: &CodeGenLLVM<'ctx>,
     ) -> BasicValueEnum<'ctx> {
         if let Some(implicit_cast_entry) = self.semantic_analyser.implicit_cast_entry(handle) {
@@ -259,15 +259,16 @@ impl<'ctx> CodeGenInner<'ctx> {
         }
     }
 
-    fn emit_instructions_with_casts<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ast, 'ctx>, codegen: &CodeGenLLVM<'ctx>) -> BasicValueEnum<'ctx> {
+    fn emit_instructions_with_casts<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) -> BasicValueEnum<'ctx> {
         let value = self.emit_instructions(ast, function_context, codegen).expect("ast should create a value");
         self.emit_implicit_cast_if_necessary(ast.0.as_handle(), value, function_context, codegen)
     }
 
-    fn emit_instructions<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ast, 'ctx>, codegen: &CodeGenLLVM<'ctx>) -> Option<BasicValueEnum<'ctx>> {
+    fn emit_instructions<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) -> Option<BasicValueEnum<'ctx>> {
         match &ast.0 {
             Ast::Identifier(Identifier(name)) => {
-                let variable = function_context.variables.get(name).expect("variable should exist");
+                let handle = self.semantic_analyser.identifier_to_declaration(ast.0.as_handle());
+                let variable = function_context.variables.get(&handle).expect("variable should exist");
                 let value = function_context.builder.build_load(variable.ty, variable.ptr, name);
                 Some(value)
             }
@@ -424,8 +425,9 @@ impl<'ctx> CodeGenInner<'ctx> {
             Ast::LiteralInt(LiteralInt(value)) => Some(codegen.int_type.const_int(*value as u64, false).into()),
             Ast::LiteralBool(LiteralBool(bool)) => Some(codegen.bool_type.const_int(if *bool { 1 } else { 0 }, false).into()),
             Ast::LiteralFloat(LiteralFloat(value)) => Some(codegen.double_type.const_float(*value).into()),
-            Ast::Assignment(Assignment(name, expression)) => {
-                let variable = function_context.variables.get(name).expect("variable should exist");
+            Ast::Assignment(Assignment(_, expression)) | Ast::Declaration(Assignment(_, expression)) => {
+                let handle = self.semantic_analyser.identifier_to_declaration(ast.0.as_handle());
+                let variable = function_context.variables.get(&handle).expect("variable should exist");
                 let expression_value = self.emit_instructions(expression, function_context, codegen).expect("expression should have a value");
                 function_context.builder.build_store(variable.ptr, expression_value);
                 None
@@ -462,7 +464,7 @@ impl<'ctx> CodeGenInner<'ctx> {
     }
 }
 
-impl<'f, 'ctx> CodeGenFunctionContext<'f, 'ctx> {
+impl<'ctx> CodeGenFunctionContext<'ctx> {
     pub fn is_bb_unterminated(&self) -> bool {
         self.builder.get_insert_block().expect("should have insert block").get_terminator().is_none()
     }
