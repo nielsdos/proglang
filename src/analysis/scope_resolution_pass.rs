@@ -1,6 +1,6 @@
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
-use crate::syntax::ast::{Assignment, FunctionDeclaration, Identifier};
+use crate::syntax::ast::{Assignment, FunctionDeclaration, Identifier, StatementList};
 use crate::syntax::span::Span;
 use crate::util::handle::Handle;
 use std::collections::HashMap;
@@ -98,6 +98,14 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, ()> for ScopeResolutionPass<'ast, 'f> 
             self.declare(arg.name(), arg.as_handle(), *arg_span);
         }
         self.visit(&node.statements);
+        self.pop_scope();
+    }
+
+    fn visit_statement_list(&mut self, _: Handle, node: &'ast StatementList<'ast>, _: Span) {
+        self.push_scope();
+        for statement in &node.0 {
+            self.visit(statement);
+        }
         self.pop_scope();
     }
 }
