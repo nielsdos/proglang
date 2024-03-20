@@ -13,6 +13,7 @@ pub mod analysis;
 pub mod codegen;
 pub mod syntax;
 pub mod types;
+pub mod util;
 
 fn parse_optimization_level(s: &str) -> Result<u32, String> {
     number_range(s, 0, 3)

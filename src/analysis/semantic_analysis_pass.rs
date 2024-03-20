@@ -1,7 +1,8 @@
 use crate::syntax::ast::{
-    Assignment, Ast, AstHandle, BinaryOperation, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
+    Assignment, Ast, BinaryOperation, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
 };
 use crate::syntax::span::{Span, Spanned};
+use crate::util::handle::Handle;
 
 pub trait SemanticAnalysisPass<'ast, T: Default> {
     fn visit(&mut self, node: &'ast Spanned<Ast<'ast>>) -> T {
@@ -24,56 +25,56 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
         }
     }
 
-    fn visit_literal_int(&mut self, _: AstHandle, _: &'ast LiteralInt, _: Span) -> T {
+    fn visit_literal_int(&mut self, _: Handle, _: &'ast LiteralInt, _: Span) -> T {
         T::default()
     }
 
-    fn visit_literal_double(&mut self, _: AstHandle, _: &'ast LiteralFloat, _: Span) -> T {
+    fn visit_literal_double(&mut self, _: Handle, _: &'ast LiteralFloat, _: Span) -> T {
         T::default()
     }
 
-    fn visit_literal_bool(&mut self, _: AstHandle, _: &'ast LiteralBool, _: Span) -> T {
+    fn visit_literal_bool(&mut self, _: Handle, _: &'ast LiteralBool, _: Span) -> T {
         T::default()
     }
 
-    fn visit_identifier(&mut self, _: AstHandle, _: &'ast Identifier<'ast>, _: Span) -> T {
+    fn visit_identifier(&mut self, _: Handle, _: &'ast Identifier<'ast>, _: Span) -> T {
         T::default()
     }
 
-    fn visit_binary_operation(&mut self, _: AstHandle, node: &'ast BinaryOperation<'ast>, _: Span) -> T {
+    fn visit_binary_operation(&mut self, _: Handle, node: &'ast BinaryOperation<'ast>, _: Span) -> T {
         self.visit(&node.0);
         self.visit(&node.2);
         T::default()
     }
 
-    fn visit_unary_operation(&mut self, _: AstHandle, node: &'ast UnaryOperation<'ast>, _: Span) -> T {
+    fn visit_unary_operation(&mut self, _: Handle, node: &'ast UnaryOperation<'ast>, _: Span) -> T {
         self.visit(&node.1);
         T::default()
     }
 
-    fn visit_assignment(&mut self, _: AstHandle, node: &'ast Assignment<'ast>, _: Span) -> T {
+    fn visit_assignment(&mut self, _: Handle, node: &'ast Assignment<'ast>, _: Span) -> T {
         self.visit(&node.1);
         T::default()
     }
 
-    fn visit_declaration(&mut self, _: AstHandle, node: &'ast Assignment<'ast>, _: Span) -> T {
+    fn visit_declaration(&mut self, _: Handle, node: &'ast Assignment<'ast>, _: Span) -> T {
         self.visit(&node.1);
         T::default()
     }
 
-    fn visit_statement_list(&mut self, _: AstHandle, node: &'ast StatementList<'ast>, _: Span) -> T {
+    fn visit_statement_list(&mut self, _: Handle, node: &'ast StatementList<'ast>, _: Span) -> T {
         for statement in &node.0 {
             self.visit(statement);
         }
         T::default()
     }
 
-    fn visit_function_declaration(&mut self, _: AstHandle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> T {
+    fn visit_function_declaration(&mut self, _: Handle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> T {
         self.visit(&node.statements);
         T::default()
     }
 
-    fn visit_if_statement(&mut self, _: AstHandle, node: &'ast IfStatement<'ast>, _: Span) -> T {
+    fn visit_if_statement(&mut self, _: Handle, node: &'ast IfStatement<'ast>, _: Span) -> T {
         self.visit(&node.condition);
         self.visit(&node.then_statements);
         if let Some(else_statements) = node.else_statements.as_ref() {
@@ -82,14 +83,14 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
         T::default()
     }
 
-    fn visit_return_statement(&mut self, _: AstHandle, node: &'ast ReturnStatement<'ast>, _: Span) -> T {
+    fn visit_return_statement(&mut self, _: Handle, node: &'ast ReturnStatement<'ast>, _: Span) -> T {
         if let Some(value) = &node.value {
             self.visit(value);
         }
         T::default()
     }
 
-    fn visit_function_call(&mut self, _: AstHandle, node: &'ast FunctionCall<'ast>, _: Span) -> T {
+    fn visit_function_call(&mut self, _: Handle, node: &'ast FunctionCall<'ast>, _: Span) -> T {
         self.visit(&node.callee);
         for arg in &node.args {
             self.visit(arg);

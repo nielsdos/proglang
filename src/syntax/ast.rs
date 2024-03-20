@@ -1,6 +1,7 @@
 use crate::syntax::span::Spanned;
 use crate::types::function_info::ArgumentInfo;
 use crate::types::type_system::Type;
+use crate::util::handle::Handle;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum BinaryOperationKind {
@@ -105,10 +106,8 @@ pub enum Ast<'src> {
     Todo,
 }
 
-pub type AstHandle = *const ();
-
 impl Ast<'_> {
-    pub fn as_handle(&self) -> AstHandle {
+    pub fn as_handle(&self) -> Handle {
         self as *const _ as _
     }
 }

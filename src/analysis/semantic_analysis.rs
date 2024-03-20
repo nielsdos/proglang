@@ -5,17 +5,18 @@ use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::{SemanticError, SemanticErrorList};
 use crate::analysis::type_checker_pass::TypeCheckerPass;
 use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
-use crate::syntax::ast::{Ast, AstHandle};
+use crate::syntax::ast::Ast;
 use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
 use crate::types::type_system::{ImplicitCast, Type};
+use crate::util::handle::Handle;
 use std::collections::HashMap;
 
 pub struct SemanticAnalyser<'ast> {
     ast: &'ast Spanned<Ast<'ast>>,
-    type_table: HashMap<AstHandle, Type>,
+    type_table: HashMap<Handle, Type>,
     scope_reference_map: ScopeReferenceMap,
-    implicit_cast_table: HashMap<AstHandle, ImplicitCast>,
+    implicit_cast_table: HashMap<Handle, ImplicitCast>,
     function_map: HashMap<UniqueFunctionIdentifier<'ast>, FunctionInfo<'ast>>,
     errors: Vec<SemanticError>,
 }
@@ -87,11 +88,11 @@ impl<'ast> SemanticAnalyser<'ast> {
         self.function_map.iter()
     }
 
-    pub fn implicit_cast_entry(&self, handle: AstHandle) -> Option<&ImplicitCast> {
+    pub fn implicit_cast_entry(&self, handle: Handle) -> Option<&ImplicitCast> {
         self.implicit_cast_table.get(&handle)
     }
 
-    pub fn identifier_to_declaration(&self, handle: AstHandle) -> AstHandle {
+    pub fn identifier_to_declaration(&self, handle: Handle) -> Handle {
         *self.scope_reference_map.references.get(&handle).expect("declaration should exist")
     }
 }

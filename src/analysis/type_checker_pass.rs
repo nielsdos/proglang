@@ -4,17 +4,18 @@ use crate::analysis::semantic_error::SemanticErrorList;
 use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
 use crate::syntax::ast::Ast;
 use crate::syntax::ast::{
-    Assignment, AstHandle, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
+    Assignment, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
 };
 use crate::syntax::span::Span;
 use crate::types::function_info::{FunctionInfo, VariableUpdateError};
 use crate::types::type_system::{ImplicitCast, Type};
+use crate::util::handle::Handle;
 use smallvec::SmallVec;
 use std::collections::HashMap;
 
 pub(crate) struct TypeCheckerPass<'ast, 'f> {
-    pub(crate) type_table: HashMap<AstHandle, Type>,
-    pub(crate) implicit_cast_table: HashMap<AstHandle, ImplicitCast>,
+    pub(crate) type_table: HashMap<Handle, Type>,
+    pub(crate) implicit_cast_table: HashMap<Handle, ImplicitCast>,
     pub(crate) current_function: Option<UniqueFunctionIdentifier<'ast>>,
     pub(crate) function_map: &'f mut HashMap<UniqueFunctionIdentifier<'ast>, FunctionInfo<'ast>>,
     pub(crate) scope_reference_map: &'f ScopeReferenceMap,
@@ -40,33 +41,33 @@ impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
         self.current_function = None;
     }
 
-    fn store_ast_type(&mut self, handle: AstHandle, ty: Type) {
+    fn store_ast_type(&mut self, handle: Handle, ty: Type) {
         let old_value = self.type_table.insert(handle, ty);
         assert!(old_value.is_none());
     }
 
-    fn map_ast_handle_to_declarator(&self, handle: AstHandle) -> AstHandle {
+    fn map_ast_handle_to_declarator(&self, handle: Handle) -> Handle {
         *self.scope_reference_map.references.get(&handle).expect("scope resolution ensures this mapping exists")
     }
 }
 
 impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
-    fn visit_literal_int(&mut self, handle: AstHandle, _: &'ast LiteralInt, _: Span) -> Type {
+    fn visit_literal_int(&mut self, handle: Handle, _: &'ast LiteralInt, _: Span) -> Type {
         self.store_ast_type(handle, Type::Int);
         Type::Int
     }
 
-    fn visit_literal_double(&mut self, handle: AstHandle, _: &'ast LiteralFloat, _: Span) -> Type {
+    fn visit_literal_double(&mut self, handle: Handle, _: &'ast LiteralFloat, _: Span) -> Type {
         self.store_ast_type(handle, Type::Double);
         Type::Double
     }
 
-    fn visit_literal_bool(&mut self, handle: AstHandle, _: &'ast LiteralBool, _: Span) -> Type {
+    fn visit_literal_bool(&mut self, handle: Handle, _: &'ast LiteralBool, _: Span) -> Type {
         self.store_ast_type(handle, Type::Bool);
         Type::Bool
     }
 
-    fn visit_identifier(&mut self, handle: AstHandle, _: &'ast Identifier<'ast>, _: Span) -> Type {
+    fn visit_identifier(&mut self, handle: Handle, _: &'ast Identifier<'ast>, _: Span) -> Type {
         let referenced_handle = self.map_ast_handle_to_declarator(handle);
         let ty = if let Some(ty) = self.current_function_scope_mut().expect("just entered a function").query_variable_type(referenced_handle) {
             ty.clone()
@@ -79,7 +80,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         ty
     }
 
-    fn visit_binary_operation(&mut self, handle: AstHandle, node: &'ast BinaryOperation<'ast>, _: Span) -> Type {
+    fn visit_binary_operation(&mut self, handle: Handle, node: &'ast BinaryOperation<'ast>, _: Span) -> Type {
         let lhs_type = self.visit(&node.0);
         let rhs_type = self.visit(&node.2);
 
@@ -118,7 +119,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         result_type
     }
 
-    fn visit_unary_operation(&mut self, handle: AstHandle, node: &'ast UnaryOperation<'ast>, span: Span) -> Type {
+    fn visit_unary_operation(&mut self, handle: Handle, node: &'ast UnaryOperation<'ast>, span: Span) -> Type {
         let rhs_type = self.visit(&node.1);
         if !rhs_type.is_numeric() {
             // Try to implicitly cast it
@@ -142,7 +143,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         rhs_type
     }
 
-    fn visit_assignment(&mut self, handle: AstHandle, node: &'ast Assignment<'ast>, span: Span) -> Type {
+    fn visit_assignment(&mut self, handle: Handle, node: &'ast Assignment<'ast>, span: Span) -> Type {
         let handle = self.map_ast_handle_to_declarator(handle);
 
         let rhs_type = self.visit(&node.1);
@@ -161,7 +162,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         }
     }
 
-    fn visit_declaration(&mut self, handle: AstHandle, node: &'ast Assignment<'ast>, _: Span) -> Type {
+    fn visit_declaration(&mut self, handle: Handle, node: &'ast Assignment<'ast>, _: Span) -> Type {
         let rhs_type = self.visit(&node.1);
         self.current_function_scope_mut()
             .expect("must be in function context")
@@ -170,7 +171,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         rhs_type
     }
 
-    fn visit_statement_list(&mut self, _: AstHandle, node: &'ast StatementList<'ast>, _: Span) -> Type {
+    fn visit_statement_list(&mut self, _: Handle, node: &'ast StatementList<'ast>, _: Span) -> Type {
         let mut last_return_span: Option<Span> = None;
         let mut found_dead_code_after_return = false;
         for statement in &node.0 {
@@ -193,7 +194,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         Type::Void
     }
 
-    fn visit_function_declaration(&mut self, _: AstHandle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> Type {
+    fn visit_function_declaration(&mut self, _: Handle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> Type {
         self.enter_function_scope(UniqueFunctionIdentifier(node.name));
         let scope = self.current_function_scope_mut().expect("just entered a function");
         let mut errors: SmallVec<[(Span, String); 4]> = SmallVec::new();
@@ -210,7 +211,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         Type::Void
     }
 
-    fn visit_if_statement(&mut self, _: AstHandle, node: &'ast IfStatement<'ast>, _: Span) -> Type {
+    fn visit_if_statement(&mut self, _: Handle, node: &'ast IfStatement<'ast>, _: Span) -> Type {
         let condition_type = self.visit(&node.condition);
         if condition_type.is_error() {
             return Type::Error;
@@ -231,7 +232,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         Type::Void
     }
 
-    fn visit_return_statement(&mut self, _: AstHandle, node: &'ast ReturnStatement<'ast>, span: Span) -> Type {
+    fn visit_return_statement(&mut self, _: Handle, node: &'ast ReturnStatement<'ast>, span: Span) -> Type {
         // TODO: implicit casts?
         let function_name = self.current_function.as_ref().unwrap().0;
         if let Some(value) = &node.value {

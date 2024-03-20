@@ -1,12 +1,12 @@
 use crate::analysis::semantic_analysis::SemanticAnalyser;
 use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
 use crate::syntax::ast::{
-    Assignment, Ast, AstHandle, BinaryOperation, BinaryOperationKind, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
-    UnaryOperationKind,
+    Assignment, Ast, BinaryOperation, BinaryOperationKind, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind,
 };
 use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
 use crate::types::type_system::{ImplicitCast, Type};
+use crate::util::handle::Handle;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::intrinsics::Intrinsic;
@@ -36,7 +36,7 @@ struct VariableInfo<'ctx> {
 struct CodeGenFunctionContext<'ctx> {
     builder: Builder<'ctx>,
     function_value: FunctionValue<'ctx>,
-    variables: HashMap<AstHandle, VariableInfo<'ctx>>,
+    variables: HashMap<Handle, VariableInfo<'ctx>>,
 }
 
 struct CodeGenInner<'ctx> {
@@ -227,13 +227,7 @@ impl<'ctx> CodeGenInner<'ctx> {
         }
     }
 
-    fn emit_implicit_cast_if_necessary(
-        &self,
-        handle: AstHandle,
-        value: BasicValueEnum<'ctx>,
-        function_context: &CodeGenFunctionContext<'ctx>,
-        codegen: &CodeGenLLVM<'ctx>,
-    ) -> BasicValueEnum<'ctx> {
+    fn emit_implicit_cast_if_necessary(&self, handle: Handle, value: BasicValueEnum<'ctx>, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) -> BasicValueEnum<'ctx> {
         if let Some(implicit_cast_entry) = self.semantic_analyser.implicit_cast_entry(handle) {
             match implicit_cast_entry {
                 ImplicitCast::IntZext => function_context.builder.build_int_z_extend(value.into_int_value(), codegen.int_type, "zext").as_basic_value_enum(),

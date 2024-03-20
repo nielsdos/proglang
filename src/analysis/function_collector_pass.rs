@@ -1,9 +1,10 @@
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
 use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
-use crate::syntax::ast::{AstHandle, FunctionDeclaration};
+use crate::syntax::ast::FunctionDeclaration;
 use crate::syntax::span::Span;
 use crate::types::function_info::FunctionInfo;
+use crate::util::handle::Handle;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
@@ -13,7 +14,7 @@ pub(crate) struct FunctionCollectorPass<'f, 'ast> {
 }
 
 impl<'f, 'ast> SemanticAnalysisPass<'ast, ()> for FunctionCollectorPass<'f, 'ast> {
-    fn visit_function_declaration(&mut self, _: AstHandle, node: &'ast FunctionDeclaration<'ast>, span: Span) {
+    fn visit_function_declaration(&mut self, _: Handle, node: &'ast FunctionDeclaration<'ast>, span: Span) {
         // TODO: in the future, when we support lambdas and closures, we should visit the function bodies
         match self.function_map.entry(UniqueFunctionIdentifier(node.name)) {
             Entry::Occupied(o) => {

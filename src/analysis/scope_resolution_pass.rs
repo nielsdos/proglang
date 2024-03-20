@@ -1,18 +1,19 @@
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
-use crate::syntax::ast::{Assignment, AstHandle, FunctionDeclaration, Identifier};
+use crate::syntax::ast::{Assignment, FunctionDeclaration, Identifier};
 use crate::syntax::span::Span;
+use crate::util::handle::Handle;
 use std::collections::HashMap;
 
 #[derive(Default)]
 pub struct ScopeReferenceMap {
-    pub(crate) references: HashMap<AstHandle, AstHandle>,
+    pub(crate) references: HashMap<Handle, Handle>,
 }
 
 pub(crate) struct ScopeResolutionPass<'ast, 'f> {
     /// Every item of the vec maps an identifier to the handle declaring the identifier.
     /// The topmost item is the currently active scope.
-    pub(crate) environment_stack: Vec<HashMap<&'ast str, AstHandle>>,
+    pub(crate) environment_stack: Vec<HashMap<&'ast str, Handle>>,
     /// Maps an identifier handle to its declaration handle.
     pub(crate) reference_map: ScopeReferenceMap,
 
@@ -36,11 +37,11 @@ impl<'ast, 'f> ScopeResolutionPass<'ast, 'f> {
         self.environment_stack.pop();
     }
 
-    fn bind(&mut self, identifier: &'ast str, declaration: AstHandle) {
+    fn bind(&mut self, identifier: &'ast str, declaration: Handle) {
         self.environment_stack.last_mut().expect("at least one scope must be active").insert(identifier, declaration);
     }
 
-    fn resolve(&self, identifier: &str) -> Option<AstHandle> {
+    fn resolve(&self, identifier: &str) -> Option<Handle> {
         for scope in self.environment_stack.iter().rev() {
             if let Some(handle) = scope.get(identifier) {
                 return Some(*handle);
@@ -49,13 +50,13 @@ impl<'ast, 'f> ScopeResolutionPass<'ast, 'f> {
         None
     }
 
-    fn reference(&mut self, referencing_handle: AstHandle, refereed_handle: AstHandle) {
+    fn reference(&mut self, referencing_handle: Handle, refereed_handle: Handle) {
         self.reference_map.references.insert(referencing_handle, refereed_handle);
     }
 }
 
 impl<'ast, 'f> ScopeResolutionPass<'ast, 'f> {
-    fn declare(&mut self, identifier: &'ast str, declaration: AstHandle, span: Span) {
+    fn declare(&mut self, identifier: &'ast str, declaration: Handle, span: Span) {
         // TODO: once map's try_insert stabilizes, use that API in `bind`!
         if self.resolve(identifier).is_none() {
             self.bind(identifier, declaration);
@@ -66,7 +67,7 @@ impl<'ast, 'f> ScopeResolutionPass<'ast, 'f> {
         }
     }
 
-    fn check_binding(&mut self, handle: AstHandle, identifier: &str, span: Span) {
+    fn check_binding(&mut self, handle: Handle, identifier: &str, span: Span) {
         if let Some(declaration_handle) = self.resolve(identifier) {
             self.reference(handle, declaration_handle);
         } else {
@@ -77,22 +78,22 @@ impl<'ast, 'f> ScopeResolutionPass<'ast, 'f> {
 }
 
 impl<'ast, 'f> SemanticAnalysisPass<'ast, ()> for ScopeResolutionPass<'ast, 'f> {
-    fn visit_identifier(&mut self, handle: AstHandle, node: &'ast Identifier<'ast>, span: Span) {
+    fn visit_identifier(&mut self, handle: Handle, node: &'ast Identifier<'ast>, span: Span) {
         self.check_binding(handle, node.0, span);
     }
 
-    fn visit_assignment(&mut self, handle: AstHandle, node: &'ast Assignment<'ast>, span: Span) {
+    fn visit_assignment(&mut self, handle: Handle, node: &'ast Assignment<'ast>, span: Span) {
         self.visit(&node.1);
         self.check_binding(handle, node.0, span);
     }
 
-    fn visit_declaration(&mut self, handle: AstHandle, node: &'ast Assignment<'ast>, span: Span) {
+    fn visit_declaration(&mut self, handle: Handle, node: &'ast Assignment<'ast>, span: Span) {
         self.visit(&node.1);
         // TODO: improve span?
         self.declare(node.0, handle, span);
     }
 
-    fn visit_function_declaration(&mut self, _: AstHandle, node: &'ast FunctionDeclaration<'ast>, _: Span) {
+    fn visit_function_declaration(&mut self, _: Handle, node: &'ast FunctionDeclaration<'ast>, _: Span) {
         self.push_scope();
         for (arg, arg_span) in &node.args {
             self.declare(arg.name(), arg.as_handle(), *arg_span);
