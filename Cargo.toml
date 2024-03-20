@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 ariadne = "0.4.0"
-#chumsky = { git = "https://github.com/zesterer/chumsky.git" }
 chumsky = { version = "1.0.0-alpha.6" }
 clap = "^4.3.5"
 clap-num = "^1.0.2"
