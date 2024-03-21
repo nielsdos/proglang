@@ -12,12 +12,14 @@ use crate::types::type_system::{ImplicitCast, Type};
 use crate::util::handle::Handle;
 use std::collections::HashMap;
 
+pub type FunctionMap<'ast> = HashMap<UniqueFunctionIdentifier<'ast>, FunctionInfo<'ast>>;
+
 pub struct SemanticAnalyser<'ast> {
     ast: &'ast Spanned<Ast<'ast>>,
     type_table: HashMap<Handle, Type>,
     scope_reference_map: ScopeReferenceMap,
     implicit_cast_table: HashMap<Handle, ImplicitCast>,
-    function_map: HashMap<UniqueFunctionIdentifier<'ast>, FunctionInfo<'ast>>,
+    function_map: FunctionMap<'ast>,
     errors: Vec<SemanticError>,
 }
 
@@ -47,6 +49,7 @@ impl<'ast> SemanticAnalyser<'ast> {
 
         let scope_reference_map = {
             let mut scope_resolution = ScopeResolutionPass::new(&mut semantic_error_list);
+            scope_resolution.register_functions(&self.function_map);
             scope_resolution.visit(self.ast);
             scope_resolution.reference_map
         };
@@ -63,6 +66,7 @@ impl<'ast> SemanticAnalyser<'ast> {
                 current_function: None,
                 function_map: &mut self.function_map,
                 scope_reference_map: &scope_reference_map,
+                binding_types: Default::default(),
                 semantic_error_list: &mut semantic_error_list,
             };
             type_checker.visit(self.ast);

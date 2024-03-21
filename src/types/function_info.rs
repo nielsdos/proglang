@@ -1,8 +1,8 @@
-use std::collections::hash_map::Entry;
 use crate::syntax::ast::Ast;
 use crate::syntax::span::Spanned;
 use crate::types::type_system::Type;
 use crate::util::handle::Handle;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -92,5 +92,10 @@ impl<'ast> FunctionInfo<'ast> {
     #[inline]
     pub fn args(&self) -> &'ast [Spanned<ArgumentInfo<'ast>>] {
         self.args
+    }
+
+    #[inline]
+    pub fn as_handle(&self) -> Handle {
+        self as *const _ as Handle
     }
 }

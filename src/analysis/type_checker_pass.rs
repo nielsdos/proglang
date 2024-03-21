@@ -2,15 +2,14 @@ use crate::analysis::scope_resolution_pass::ScopeReferenceMap;
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
 use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
-use crate::syntax::ast::Ast;
 use crate::syntax::ast::{
-    Assignment, BinaryOperation, BinaryOperationKind, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
+    Assignment, BinaryOperation, BinaryOperationKind, BindingType, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
 };
+use crate::syntax::ast::{Ast, Declaration};
 use crate::syntax::span::Span;
 use crate::types::function_info::{FunctionInfo, VariableUpdateError};
 use crate::types::type_system::{ImplicitCast, Type};
 use crate::util::handle::Handle;
-use smallvec::SmallVec;
 use std::collections::HashMap;
 
 pub(crate) struct TypeCheckerPass<'ast, 'f> {
@@ -19,6 +18,7 @@ pub(crate) struct TypeCheckerPass<'ast, 'f> {
     pub(crate) current_function: Option<UniqueFunctionIdentifier<'ast>>,
     pub(crate) function_map: &'f mut HashMap<UniqueFunctionIdentifier<'ast>, FunctionInfo<'ast>>,
     pub(crate) scope_reference_map: &'f ScopeReferenceMap,
+    pub(crate) binding_types: HashMap<Handle, BindingType>,
     pub(crate) semantic_error_list: &'f mut SemanticErrorList,
 }
 
@@ -145,8 +145,22 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
 
     fn visit_assignment(&mut self, handle: Handle, node: &'ast Assignment<'ast>, span: Span) -> Type {
         let handle = self.map_ast_handle_to_declarator(handle);
+        let binding_type = self.binding_types[&handle];
 
         let rhs_type = self.visit(&node.1);
+
+        match binding_type {
+            BindingType::ImmutableVariable => {
+                self.semantic_error_list.report_error(span, format!("the variable '{}' is immutable", node.0));
+                return rhs_type;
+            }
+            BindingType::NonVariable => {
+                self.semantic_error_list.report_error(span, format!("cannot assign to a non-variable '{}'", node.0));
+                return rhs_type;
+            }
+            _ => {}
+        };
+
         match self.current_function_scope_mut().expect("must be in function context").update_variable_type(handle, rhs_type.clone()) {
             Err(VariableUpdateError::TypeMismatch(old_type)) => {
                 self.semantic_error_list.report_error(
@@ -162,12 +176,13 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         }
     }
 
-    fn visit_declaration(&mut self, handle: Handle, node: &'ast Assignment<'ast>, _: Span) -> Type {
-        let rhs_type = self.visit(&node.1);
+    fn visit_declaration(&mut self, handle: Handle, node: &'ast Declaration<'ast>, _: Span) -> Type {
+        let rhs_type = self.visit(&node.assignment.1);
         self.current_function_scope_mut()
             .expect("must be in function context")
             .update_variable_type(handle, rhs_type.clone())
             .expect("cannot fail because the variable did not exist yet");
+        self.binding_types.insert(handle, node.binding);
         rhs_type
     }
 
@@ -197,14 +212,14 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
     fn visit_function_declaration(&mut self, _: Handle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> Type {
         self.enter_function_scope(UniqueFunctionIdentifier(node.name));
         let scope = self.current_function_scope_mut().expect("just entered a function");
-        let mut errors: SmallVec<[(Span, String); 4]> = SmallVec::new();
         for arg in &node.args {
             scope
                 .update_variable_type(arg.0.as_handle(), arg.0.ty().clone())
                 .expect("cannot fail because the variable did not exist yet");
         }
-        for error in errors.into_iter() {
-            self.semantic_error_list.report_error(error.0, error.1);
+        for arg in &node.args {
+            // TODO: mutable vs immutable args
+            self.binding_types.insert(arg.0.as_handle(), BindingType::MutableVariable);
         }
         self.visit(&node.statements);
         self.leave_function_scope();

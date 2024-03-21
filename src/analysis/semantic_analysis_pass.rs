@@ -1,5 +1,5 @@
 use crate::syntax::ast::{
-    Assignment, Ast, BinaryOperation, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
+    Assignment, Ast, BinaryOperation, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
 };
 use crate::syntax::span::{Span, Spanned};
 use crate::util::handle::Handle;
@@ -57,8 +57,8 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
         T::default()
     }
 
-    fn visit_declaration(&mut self, _: Handle, node: &'ast Assignment<'ast>, _: Span) -> T {
-        self.visit(&node.1);
+    fn visit_declaration(&mut self, _: Handle, node: &'ast Declaration<'ast>, _: Span) -> T {
+        self.visit(&node.assignment.1);
         T::default()
     }
 

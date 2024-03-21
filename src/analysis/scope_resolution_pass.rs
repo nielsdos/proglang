@@ -1,6 +1,7 @@
+use crate::analysis::semantic_analysis::FunctionMap;
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
-use crate::syntax::ast::{Assignment, FunctionDeclaration, Identifier, StatementList};
+use crate::syntax::ast::{Assignment, Declaration, FunctionDeclaration, Identifier, StatementList};
 use crate::syntax::span::Span;
 use crate::util::handle::Handle;
 use std::collections::HashMap;
@@ -26,6 +27,14 @@ impl<'ast, 'f> ScopeResolutionPass<'ast, 'f> {
             environment_stack: Default::default(),
             reference_map: Default::default(),
             semantic_error_list,
+        }
+    }
+
+    pub fn register_functions(&mut self, function_map: &'ast FunctionMap<'ast>) {
+        assert!(self.environment_stack.is_empty());
+        self.push_scope();
+        for (identifier, function_declaration) in function_map {
+            self.bind(identifier.as_str(), function_declaration.as_handle());
         }
     }
 
@@ -87,9 +96,17 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, ()> for ScopeResolutionPass<'ast, 'f> 
         self.check_binding(handle, node.0, span);
     }
 
-    fn visit_declaration(&mut self, handle: Handle, node: &'ast Assignment<'ast>, span: Span) {
-        self.visit(&node.1);
-        self.declare(node.0, handle, span);
+    fn visit_declaration(&mut self, handle: Handle, node: &'ast Declaration<'ast>, span: Span) {
+        self.visit(&node.assignment.1);
+        self.declare(node.assignment.0, handle, span);
+    }
+
+    fn visit_statement_list(&mut self, _: Handle, node: &'ast StatementList<'ast>, _: Span) {
+        self.push_scope();
+        for statement in &node.0 {
+            self.visit(statement);
+        }
+        self.pop_scope();
     }
 
     fn visit_function_declaration(&mut self, _: Handle, node: &'ast FunctionDeclaration<'ast>, _: Span) {
@@ -98,14 +115,6 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, ()> for ScopeResolutionPass<'ast, 'f> 
             self.declare(arg.name(), arg.as_handle(), *arg_span);
         }
         self.visit(&node.statements);
-        self.pop_scope();
-    }
-
-    fn visit_statement_list(&mut self, _: Handle, node: &'ast StatementList<'ast>, _: Span) {
-        self.push_scope();
-        for statement in &node.0 {
-            self.visit(statement);
-        }
         self.pop_scope();
     }
 }

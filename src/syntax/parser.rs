@@ -1,8 +1,8 @@
 // Based on the sample code from https://github.com/zesterer/chumsky/blob/main/examples/nano_rust.rs
 
 use crate::syntax::ast::{
-    Assignment, Ast, BinaryOperation, BinaryOperationKind, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList,
-    UnaryOperation, UnaryOperationKind,
+    Assignment, Ast, BinaryOperation, BinaryOperationKind, BindingType, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt,
+    ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind,
 };
 use crate::syntax::lexer::lexer;
 use crate::syntax::span::{Span, Spanned};
@@ -171,13 +171,21 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
             .map_with(|(ident, expr), extra| (ident, expr, extra.span()))
             .map(|(ident, expr, span)| (Ast::Assignment(Assignment(ident, Box::new(expr))), span));
 
-        let declaration = just(Token::Let)
-            .ignore_then(identifier)
+        let declaration = choice((just(Token::Let).to(BindingType::ImmutableVariable), just(Token::Mut).to(BindingType::MutableVariable)))
+            .then(identifier)
             .then_ignore(just(Token::Operator('=')))
             .then(parse_expression())
             .then_ignore(just(Token::StatementEnd))
-            .map_with(|(ident, expr), extra| (ident, expr, extra.span()))
-            .map(|(ident, expr, span)| (Ast::Declaration(Assignment(ident, Box::new(expr))), span));
+            .map_with(|((binding, ident), expr), extra| (binding, ident, expr, extra.span()))
+            .map(|(binding, ident, expr, span)| {
+                (
+                    Ast::Declaration(Declaration {
+                        assignment: Assignment(ident, Box::new(expr)),
+                        binding,
+                    }),
+                    span,
+                )
+            });
 
         let return_ = just(Token::Return)
             .ignore_then(parse_expression().or_not())

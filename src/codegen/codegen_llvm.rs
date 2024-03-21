@@ -1,7 +1,8 @@
 use crate::analysis::semantic_analysis::SemanticAnalyser;
 use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
 use crate::syntax::ast::{
-    Assignment, Ast, BinaryOperation, BinaryOperationKind, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind,
+    Assignment, Ast, BinaryOperation, BinaryOperationKind, Declaration, FunctionCall, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
+    UnaryOperationKind,
 };
 use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
@@ -42,6 +43,7 @@ struct CodeGenFunctionContext<'ctx> {
 struct CodeGenInner<'ctx> {
     module: Module<'ctx>,
     semantic_analyser: &'ctx SemanticAnalyser<'ctx>,
+    function_declaration_handle_to_function_value: HashMap<Handle, FunctionValue<'ctx>>,
     optimization_level: u32,
 }
 
@@ -137,11 +139,20 @@ impl<'ctx> CodeGenLLVM<'ctx> {
         self.pass_managers.push(self.create_pass_manager());
     }
 
+    pub fn declare_function(&mut self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo) {
+        // TODO: hardcoded to first module right now
+        let function_value = self.modules[0].declare_function(name, function_info, self);
+        self.modules[0].function_declaration_handle_to_function_value.insert(function_info.as_handle(), function_value);
+    }
+
     pub fn codegen_function(&mut self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo) {
         let builder = self.context.0.create_builder();
 
         // TODO: hardcoded to first module right now
         self.modules[0].codegen_function(name, function_info, builder, self);
+    }
+
+    pub fn optimize(&self) {
         self.pass_managers[0].run_on(&self.modules[0].module);
     }
 
@@ -157,14 +168,12 @@ impl<'ctx> CodeGenInner<'ctx> {
         Self {
             module,
             semantic_analyser,
+            function_declaration_handle_to_function_value: Default::default(),
             optimization_level,
         }
     }
 
-    pub fn codegen_function(&self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
-        // Create function declaration and entry basic block
-        let context = &codegen.context.0;
-
+    pub fn declare_function(&self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo, codegen: &CodeGenLLVM<'ctx>) -> FunctionValue<'ctx> {
         let arg_types = function_info
             .args()
             .iter()
@@ -181,7 +190,15 @@ impl<'ctx> CodeGenInner<'ctx> {
             codegen.type_to_llvm_type[function_info.return_type()].fn_type(arg_types.as_slice(), false)
         };
 
-        let function_value = self.module.add_function(name.as_str(), function_type, None);
+        self.module.add_function(name.as_str(), function_type, None)
+    }
+
+    pub fn codegen_function(&self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
+        let context = &codegen.context.0;
+
+        println!("codegen function: {}", name.0);
+
+        let function_value = self.function_declaration_handle_to_function_value[&function_info.as_handle()];
         let basic_block = context.append_basic_block(function_value, "entry");
         builder.position_at_end(basic_block);
 
@@ -419,7 +436,11 @@ impl<'ctx> CodeGenInner<'ctx> {
             Ast::LiteralInt(LiteralInt(value)) => Some(codegen.int_type.const_int(*value as u64, false).into()),
             Ast::LiteralBool(LiteralBool(bool)) => Some(codegen.bool_type.const_int(if *bool { 1 } else { 0 }, false).into()),
             Ast::LiteralFloat(LiteralFloat(value)) => Some(codegen.double_type.const_float(*value).into()),
-            Ast::Assignment(Assignment(_, expression)) | Ast::Declaration(Assignment(_, expression)) => {
+            Ast::Assignment(Assignment(_, expression))
+            | Ast::Declaration(Declaration {
+                assignment: Assignment(_, expression),
+                binding: _,
+            }) => {
                 let handle = self.semantic_analyser.identifier_to_declaration(ast.0.as_handle());
                 let variable = function_context.variables.get(&handle).expect("variable should exist");
                 let expression_value = self.emit_instructions(expression, function_context, codegen).expect("expression should have a value");
@@ -435,7 +456,30 @@ impl<'ctx> CodeGenInner<'ctx> {
                 }
                 None
             }
-            _ => None,
+            Ast::FunctionCall(FunctionCall { callee, args }) => {
+                let handle = self.semantic_analyser.identifier_to_declaration(callee.0.as_handle());
+                let function_value = &self.function_declaration_handle_to_function_value[&handle];
+
+                Some(
+                    function_context
+                        .builder
+                        .build_call(
+                            *function_value,
+                            args.iter()
+                                .map(|arg| self.emit_instructions(arg, function_context, codegen).expect("argument should have a value").into())
+                                .collect::<Vec<_>>() // TODO: use smallvec
+                                .as_slice(),
+                            "call",
+                        )
+                        .try_as_basic_value()
+                        .left()
+                        .unwrap(), /* TODO */
+                )
+            }
+            _ => {
+                println!("Unhandled AST: {:?}", ast.0);
+                None
+            }
         }
     }
 

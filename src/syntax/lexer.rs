@@ -63,6 +63,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
         "while" => Token::While,
         "do" => Token::Do,
         "let" => Token::Let,
+        "mut" => Token::Mut,
         "true" => Token::LiteralBool(true),
         "false" => Token::LiteralBool(false),
         "fn" => Token::Fn,
