@@ -467,7 +467,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                             *function_value,
                             args.iter()
                                 .map(|arg| self.emit_instructions(arg, function_context, codegen).expect("argument should have a value").into())
-                                .collect::<Vec<_>>() // TODO: use smallvec
+                                .collect::<SmallVec<[_; 4]>>()
                                 .as_slice(),
                             "call",
                         )
