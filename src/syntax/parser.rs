@@ -56,7 +56,6 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
                     .delimited_by(just(Token::LeftParen), just(Token::RightParen)),
             )
             .map(|(identifier, args)| {
-                println!("identifier={:?} args={:?}", identifier, args);
                 Ast::FunctionCall(FunctionCall { callee: Box::new(identifier), args })
             });
 
@@ -208,7 +207,7 @@ fn parse_type<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tok
         Token::Identifier("int") => Type::Int,
         Token::Identifier("bool") => Type::Bool,
     };
-    ty_name //.map_with_span(|a, b| (a, b))
+    ty_name
 }
 
 fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>> {
