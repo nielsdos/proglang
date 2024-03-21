@@ -196,8 +196,6 @@ impl<'ctx> CodeGenInner<'ctx> {
     pub fn codegen_function(&self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
         let context = &codegen.context.0;
 
-        println!("codegen function: {}", name.0);
-
         let function_value = self.function_declaration_handle_to_function_value[&function_info.as_handle()];
         let basic_block = context.append_basic_block(function_value, "entry");
         builder.position_at_end(basic_block);
