@@ -55,9 +55,7 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
                     .collect::<Vec<_>>()
                     .delimited_by(just(Token::LeftParen), just(Token::RightParen)),
             )
-            .map(|(identifier, args)| {
-                Ast::FunctionCall(FunctionCall { callee: Box::new(identifier), args })
-            });
+            .map(|(identifier, args)| Ast::FunctionCall(FunctionCall { callee: Box::new(identifier), args }));
 
         let atom = literal
             .or(call_expression)

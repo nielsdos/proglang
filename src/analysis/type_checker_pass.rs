@@ -13,7 +13,6 @@ use crate::util::handle::Handle;
 use std::collections::HashMap;
 
 pub(crate) struct TypeCheckerPass<'ast, 'f> {
-    pub(crate) type_table: HashMap<Handle, Type>,
     pub(crate) implicit_cast_table: HashMap<Handle, ImplicitCast>,
     pub(crate) current_function: Option<UniqueFunctionIdentifier<'ast>>,
     pub(crate) function_map: &'f mut HashMap<UniqueFunctionIdentifier<'ast>, FunctionInfo<'ast>>,
@@ -41,29 +40,21 @@ impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
         self.current_function = None;
     }
 
-    fn store_ast_type(&mut self, handle: Handle, ty: Type) {
-        let old_value = self.type_table.insert(handle, ty);
-        assert!(old_value.is_none());
-    }
-
     fn map_ast_handle_to_declarator(&self, handle: Handle) -> Handle {
         *self.scope_reference_map.references.get(&handle).expect("scope resolution ensures this mapping exists")
     }
 }
 
 impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
-    fn visit_literal_int(&mut self, handle: Handle, _: &'ast LiteralInt, _: Span) -> Type {
-        self.store_ast_type(handle, Type::Int);
+    fn visit_literal_int(&mut self, _: Handle, _: &'ast LiteralInt, _: Span) -> Type {
         Type::Int
     }
 
-    fn visit_literal_double(&mut self, handle: Handle, _: &'ast LiteralFloat, _: Span) -> Type {
-        self.store_ast_type(handle, Type::Double);
+    fn visit_literal_double(&mut self, _: Handle, _: &'ast LiteralFloat, _: Span) -> Type {
         Type::Double
     }
 
-    fn visit_literal_bool(&mut self, handle: Handle, _: &'ast LiteralBool, _: Span) -> Type {
-        self.store_ast_type(handle, Type::Bool);
+    fn visit_literal_bool(&mut self, _: Handle, _: &'ast LiteralBool, _: Span) -> Type {
         Type::Bool
     }
 
@@ -75,17 +66,14 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             return Type::Error;
         };
 
-        self.store_ast_type(handle, ty.clone());
-
         ty
     }
 
-    fn visit_binary_operation(&mut self, handle: Handle, node: &'ast BinaryOperation<'ast>, _: Span) -> Type {
+    fn visit_binary_operation(&mut self, _: Handle, node: &'ast BinaryOperation<'ast>, _: Span) -> Type {
         let lhs_type = self.visit(&node.0);
         let rhs_type = self.visit(&node.2);
 
         if lhs_type.is_error() || rhs_type.is_error() {
-            self.store_ast_type(handle, Type::Error);
             return Type::Error;
         }
 
@@ -115,17 +103,15 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         }
 
         let result_type = if node.1.is_comparison_op() { Type::Bool } else { target_type };
-        self.store_ast_type(handle, result_type.clone());
         result_type
     }
 
-    fn visit_unary_operation(&mut self, handle: Handle, node: &'ast UnaryOperation<'ast>, span: Span) -> Type {
+    fn visit_unary_operation(&mut self, _: Handle, node: &'ast UnaryOperation<'ast>, span: Span) -> Type {
         let rhs_type = self.visit(&node.1);
         if !rhs_type.is_numeric() {
             // Try to implicitly cast it
             return if rhs_type == Type::Bool {
                 self.implicit_cast_table.insert(node.1 .0.as_handle(), ImplicitCast::IntZext);
-                self.store_ast_type(handle, Type::Int);
                 Type::Int
             } else {
                 // Don't report propagated errors
@@ -135,11 +121,9 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
                         format!("unary operator '{}' expects a numeric type, found '{}' instead", node.0.to_human_readable_str(), rhs_type),
                     );
                 }
-                self.store_ast_type(handle, Type::Error);
                 Type::Error
             };
         }
-        self.store_ast_type(handle, rhs_type.clone());
         rhs_type
     }
 

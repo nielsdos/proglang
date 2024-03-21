@@ -8,7 +8,7 @@ use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
 use crate::syntax::ast::Ast;
 use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
-use crate::types::type_system::{ImplicitCast, Type};
+use crate::types::type_system::ImplicitCast;
 use crate::util::handle::Handle;
 use std::collections::HashMap;
 
@@ -16,7 +16,6 @@ pub type FunctionMap<'ast> = HashMap<UniqueFunctionIdentifier<'ast>, FunctionInf
 
 pub struct SemanticAnalyser<'ast> {
     ast: &'ast Spanned<Ast<'ast>>,
-    type_table: HashMap<Handle, Type>,
     scope_reference_map: ScopeReferenceMap,
     implicit_cast_table: HashMap<Handle, ImplicitCast>,
     function_map: FunctionMap<'ast>,
@@ -27,7 +26,6 @@ impl<'ast> SemanticAnalyser<'ast> {
     pub fn new(ast: &'ast Spanned<Ast<'ast>>) -> Self {
         Self {
             ast,
-            type_table: HashMap::new(),
             scope_reference_map: Default::default(),
             implicit_cast_table: Default::default(),
             function_map: Default::default(),
@@ -59,9 +57,8 @@ impl<'ast> SemanticAnalyser<'ast> {
             return;
         }
 
-        let (type_table, implicit_cast_table) = {
+        let implicit_cast_table = {
             let mut type_checker = TypeCheckerPass {
-                type_table: Default::default(),
                 implicit_cast_table: Default::default(),
                 current_function: None,
                 function_map: &mut self.function_map,
@@ -70,7 +67,7 @@ impl<'ast> SemanticAnalyser<'ast> {
                 semantic_error_list: &mut semantic_error_list,
             };
             type_checker.visit(self.ast);
-            (type_checker.type_table, type_checker.implicit_cast_table)
+            type_checker.implicit_cast_table
         };
 
         let mut return_check_pass = ReturnCheckPass {
@@ -78,7 +75,6 @@ impl<'ast> SemanticAnalyser<'ast> {
         };
         return_check_pass.visit(self.ast);
 
-        self.type_table = type_table;
         self.scope_reference_map = scope_reference_map;
         self.implicit_cast_table = implicit_cast_table;
         self.errors = semantic_error_list.into_vec();
