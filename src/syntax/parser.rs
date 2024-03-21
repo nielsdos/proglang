@@ -223,9 +223,13 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
         .then(identifier)
         .then_ignore(just(Token::LeftParen))
         .then(
-            parse_type()
+            just(Token::Mut)
+                .to(BindingType::MutableVariable)
+                .or_not()
+                .map(|mutability| mutability.unwrap_or(BindingType::ImmutableVariable))
+                .then(parse_type())
                 .then(identifier)
-                .map_with(|(ty, ident), extra| (ArgumentInfo::new(ident, ty), extra.span()))
+                .map_with(|((binding, ty), ident), extra| (ArgumentInfo::new(ident, ty, binding), extra.span()))
                 .separated_by(just(Token::Comma))
                 .allow_trailing()
                 .collect::<Vec<_>>(),

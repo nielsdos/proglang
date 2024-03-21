@@ -1,4 +1,4 @@
-use crate::syntax::ast::Ast;
+use crate::syntax::ast::{Ast, BindingType};
 use crate::syntax::span::Spanned;
 use crate::types::type_system::Type;
 use crate::util::handle::Handle;
@@ -9,6 +9,7 @@ use std::collections::HashMap;
 pub struct ArgumentInfo<'ast> {
     name: &'ast str,
     ty: Type,
+    binding: BindingType,
 }
 
 #[derive(Debug)]
@@ -25,8 +26,8 @@ pub enum VariableUpdateError {
 }
 
 impl<'ast> ArgumentInfo<'ast> {
-    pub fn new(name: &'ast str, ty: Type) -> Self {
-        Self { name, ty }
+    pub fn new(name: &'ast str, ty: Type, binding: BindingType) -> Self {
+        Self { name, ty, binding }
     }
 
     #[inline]
@@ -37,6 +38,11 @@ impl<'ast> ArgumentInfo<'ast> {
     #[inline]
     pub fn ty(&self) -> &Type {
         &self.ty
+    }
+
+    #[inline]
+    pub fn binding(&self) -> BindingType {
+        self.binding
     }
 
     #[inline]

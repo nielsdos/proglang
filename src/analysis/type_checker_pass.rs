@@ -218,8 +218,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
                 .expect("cannot fail because the variable did not exist yet");
         }
         for arg in &node.args {
-            // TODO: mutable vs immutable args
-            self.binding_types.insert(arg.0.as_handle(), BindingType::MutableVariable);
+            self.binding_types.insert(arg.0.as_handle(), arg.0.binding());
         }
         self.visit(&node.statements);
         self.leave_function_scope();
