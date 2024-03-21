@@ -102,8 +102,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             self.implicit_cast_table.insert(node.2 .0.as_handle(), compute_target_type(&rhs_type));
         }
 
-        let result_type = if node.1.is_comparison_op() { Type::Bool } else { target_type };
-        result_type
+        if node.1.is_comparison_op() { Type::Bool } else { target_type }
     }
 
     fn visit_unary_operation(&mut self, _: Handle, node: &'ast UnaryOperation<'ast>, span: Span) -> Type {
