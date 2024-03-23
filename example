@@ -5,6 +5,7 @@ fn foo() -> fn () -> int:
     return bar
 
 fn test() -> int:
+    # TODO: support this: return (foo())()
     let f = foo()
     return f()
 
