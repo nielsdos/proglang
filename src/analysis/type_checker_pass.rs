@@ -282,9 +282,10 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         };
 
         if node.args.len() != callee_type.arg_types.len() {
+            let plural_letter = |x: usize| if x == 1 { "" } else { "s" };
             self.semantic_error_list.report_error(
                 span,
-                format!("expected {} arguments, but this function call has {} arguments", callee_type.arg_types.len(), node.args.len()),
+                format!("expected {} argument{}, but this function call has {} argument{}", callee_type.arg_types.len(), plural_letter(callee_type.arg_types.len()), node.args.len(), plural_letter(node.args.len())),
             );
         }
 
