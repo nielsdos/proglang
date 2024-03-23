@@ -18,10 +18,8 @@ pub struct FunctionInfo<'ast> {
     body: &'ast Spanned<Ast<'ast>>,
     variable_types: HashMap<Handle, Type>,
     args: &'ast [Spanned<ArgumentInfo<'ast>>],
-    return_type: Type,
     name: &'ast str,
     declaration_handle: Handle,
-    // TODO: remove other duplicate data from this struct please
     function_type: Rc<FunctionType>,
 }
 
@@ -60,7 +58,7 @@ impl<'ast> ArgumentInfo<'ast> {
 impl<'ast> FunctionInfo<'ast> {
     pub fn new(name: &'ast str, body: &'ast Spanned<Ast<'ast>>, args: &'ast [Spanned<ArgumentInfo<'ast>>], return_type: Type, declaration_handle: Handle) -> Self {
         let function_type = FunctionType {
-            return_type: return_type.clone(),
+            return_type,
             arg_types: args.iter().map(|arg| arg.0.ty.clone()).collect(),
         };
 
@@ -68,7 +66,6 @@ impl<'ast> FunctionInfo<'ast> {
             body,
             variable_types: HashMap::new(),
             args,
-            return_type,
             name,
             declaration_handle,
             function_type: Rc::new(function_type),
@@ -105,11 +102,6 @@ impl<'ast> FunctionInfo<'ast> {
     }
 
     #[inline]
-    pub fn return_type(&self) -> &Type {
-        &self.return_type
-    }
-
-    #[inline]
     pub fn args(&self) -> &'ast [Spanned<ArgumentInfo<'ast>>] {
         self.args
     }
@@ -122,6 +114,11 @@ impl<'ast> FunctionInfo<'ast> {
     #[inline]
     pub fn function_type(&self) -> Rc<FunctionType> {
         self.function_type.clone()
+    }
+
+    #[inline]
+    pub fn return_type(&self) -> &Type {
+        &self.function_type.return_type
     }
 
     #[inline]
