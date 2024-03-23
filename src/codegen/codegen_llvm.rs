@@ -1,5 +1,4 @@
 use crate::analysis::semantic_analysis::SemanticAnalyser;
-use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
 use crate::syntax::ast::{
     Assignment, Ast, BinaryOperation, BinaryOperationKind, Declaration, FunctionCall, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
     UnaryOperationKind,
@@ -139,17 +138,17 @@ impl<'ctx> CodeGenLLVM<'ctx> {
         self.pass_managers.push(self.create_pass_manager());
     }
 
-    pub fn declare_function(&mut self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo) {
+    pub fn declare_function(&mut self, function_info: &FunctionInfo) {
         // TODO: hardcoded to first module right now
-        let function_value = self.modules[0].declare_function(name, function_info, self);
-        self.modules[0].function_declaration_handle_to_function_value.insert(function_info.as_handle(), function_value);
+        let function_value = self.modules[0].declare_function(function_info, self);
+        self.modules[0].function_declaration_handle_to_function_value.insert(function_info.declaration_handle(), function_value);
     }
 
-    pub fn codegen_function(&mut self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo) {
+    pub fn codegen_function(&mut self, function_info: &FunctionInfo) {
         let builder = self.context.0.create_builder();
 
         // TODO: hardcoded to first module right now
-        self.modules[0].codegen_function(name, function_info, builder, self);
+        self.modules[0].codegen_function(function_info, builder, self);
     }
 
     pub fn optimize(&self) {
@@ -173,7 +172,7 @@ impl<'ctx> CodeGenInner<'ctx> {
         }
     }
 
-    pub fn declare_function(&self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo, codegen: &CodeGenLLVM<'ctx>) -> FunctionValue<'ctx> {
+    pub fn declare_function(&self, function_info: &FunctionInfo, codegen: &CodeGenLLVM<'ctx>) -> FunctionValue<'ctx> {
         let arg_types = function_info
             .args()
             .iter()
@@ -190,13 +189,13 @@ impl<'ctx> CodeGenInner<'ctx> {
             codegen.type_to_llvm_type[function_info.return_type()].fn_type(arg_types.as_slice(), false)
         };
 
-        self.module.add_function(name.as_str(), function_type, None)
+        self.module.add_function(function_info.name(), function_type, None)
     }
 
-    pub fn codegen_function(&self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
+    pub fn codegen_function(&self, function_info: &FunctionInfo, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
         let context = &codegen.context.0;
 
-        let function_value = self.function_declaration_handle_to_function_value[&function_info.as_handle()];
+        let function_value = self.function_declaration_handle_to_function_value[&function_info.declaration_handle()];
         let basic_block = context.append_basic_block(function_value, "entry");
         builder.position_at_end(basic_block);
 
@@ -238,7 +237,7 @@ impl<'ctx> CodeGenInner<'ctx> {
 
         if !function_value.verify(true) {
             function_value.print_to_stderr();
-            panic!("Function '{}' is invalid", name.0);
+            panic!("Function '{}' is invalid", function_info.name());
         }
     }
 

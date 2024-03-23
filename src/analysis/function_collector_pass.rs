@@ -1,32 +1,34 @@
+use crate::analysis::semantic_analysis::FunctionMap;
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
-use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
 use crate::syntax::ast::FunctionDeclaration;
 use crate::syntax::span::Span;
 use crate::types::function_info::FunctionInfo;
 use crate::util::handle::Handle;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 pub(crate) struct FunctionCollectorPass<'f, 'ast> {
-    pub(crate) function_map: HashMap<UniqueFunctionIdentifier<'ast>, FunctionInfo<'ast>>,
+    pub(crate) function_map: FunctionMap<'ast>,
     pub(crate) semantic_error_list: &'f mut SemanticErrorList,
+    pub(crate) seen_function_names: HashMap<&'ast str, Span>,
 }
 
 impl<'f, 'ast> SemanticAnalysisPass<'ast, ()> for FunctionCollectorPass<'f, 'ast> {
-    fn visit_function_declaration(&mut self, _: Handle, node: &'ast FunctionDeclaration<'ast>, span: Span) {
+    fn visit_function_declaration(&mut self, handle: Handle, node: &'ast FunctionDeclaration<'ast>, span: Span) {
         // TODO: in the future, when we support lambdas and closures, we should visit the function bodies
-        match self.function_map.entry(UniqueFunctionIdentifier(node.name)) {
-            Entry::Occupied(o) => {
+        match self.seen_function_names.get(node.name) {
+            Some(previous_span) => {
                 self.semantic_error_list.report_error_with_note(
                     span,
                     format!("the function '{}' was already declared in this scope", node.name),
-                    o.get().body().1,
+                    *previous_span,
                     "previously declared here".into(),
                 );
             }
-            Entry::Vacant(v) => {
-                v.insert(FunctionInfo::new(&node.statements, &node.args, node.return_type.clone()));
+            None => {
+                self.seen_function_names.insert(node.name, span);
+                self.function_map
+                    .insert(handle, FunctionInfo::new(node.name, &node.statements, &node.args, node.return_type.clone(), handle));
             }
         }
     }

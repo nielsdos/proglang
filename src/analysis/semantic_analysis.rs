@@ -4,7 +4,6 @@ use crate::analysis::scope_resolution_pass::{ScopeReferenceMap, ScopeResolutionP
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::{SemanticError, SemanticErrorList};
 use crate::analysis::type_checker_pass::TypeCheckerPass;
-use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
 use crate::syntax::ast::Ast;
 use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
@@ -12,7 +11,7 @@ use crate::types::type_system::ImplicitCast;
 use crate::util::handle::Handle;
 use std::collections::HashMap;
 
-pub type FunctionMap<'ast> = HashMap<UniqueFunctionIdentifier<'ast>, FunctionInfo<'ast>>;
+pub type FunctionMap<'ast> = HashMap<Handle, FunctionInfo<'ast>>;
 
 pub struct SemanticAnalyser<'ast> {
     ast: &'ast Spanned<Ast<'ast>>,
@@ -33,6 +32,7 @@ impl<'ast> SemanticAnalyser<'ast> {
         }
     }
 
+    // TODO: we should use ::new functions instead of directly instantiating structs here...
     pub fn analyse(&mut self) {
         let mut semantic_error_list = SemanticErrorList::default();
 
@@ -40,6 +40,7 @@ impl<'ast> SemanticAnalyser<'ast> {
             let mut function_collector = FunctionCollectorPass {
                 function_map: Default::default(),
                 semantic_error_list: &mut semantic_error_list,
+                seen_function_names: Default::default(),
             };
             function_collector.visit(self.ast);
             function_collector.function_map
@@ -84,7 +85,7 @@ impl<'ast> SemanticAnalyser<'ast> {
         &self.errors
     }
 
-    pub fn function_list_iter(&self) -> impl Iterator<Item = (&'_ UniqueFunctionIdentifier<'_>, &'_ FunctionInfo<'_>)> {
+    pub fn function_list_iter(&self) -> impl Iterator<Item = (&Handle, &'_ FunctionInfo<'_>)> {
         self.function_map.iter()
     }
 

@@ -1,9 +1,9 @@
 use crate::analysis::scope_resolution_pass::ScopeReferenceMap;
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
-use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
 use crate::syntax::ast::{
-    Assignment, BinaryOperation, BinaryOperationKind, BindingType, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
+    Assignment, BinaryOperation, BinaryOperationKind, BindingType, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList,
+    UnaryOperation,
 };
 use crate::syntax::ast::{Ast, Declaration};
 use crate::syntax::span::Span;
@@ -14,8 +14,8 @@ use std::collections::HashMap;
 
 pub(crate) struct TypeCheckerPass<'ast, 'f> {
     pub(crate) implicit_cast_table: HashMap<Handle, ImplicitCast>,
-    pub(crate) current_function: Option<UniqueFunctionIdentifier<'ast>>,
-    pub(crate) function_map: &'f mut HashMap<UniqueFunctionIdentifier<'ast>, FunctionInfo<'ast>>,
+    pub(crate) current_function: Option<Handle>,
+    pub(crate) function_map: &'f mut HashMap<Handle, FunctionInfo<'ast>>,
     pub(crate) scope_reference_map: &'f ScopeReferenceMap,
     pub(crate) binding_types: HashMap<Handle, BindingType>,
     pub(crate) semantic_error_list: &'f mut SemanticErrorList,
@@ -30,7 +30,7 @@ impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
         self.current_function.as_ref().and_then(|name| self.function_map.get_mut(name))
     }
 
-    fn enter_function_scope(&mut self, function: UniqueFunctionIdentifier<'ast>) {
+    fn enter_function_scope(&mut self, function: Handle) {
         assert!(self.current_function.is_none());
         self.current_function = Some(function);
     }
@@ -42,6 +42,18 @@ impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
 
     fn map_ast_handle_to_declarator(&self, handle: Handle) -> Handle {
         *self.scope_reference_map.references.get(&handle).expect("scope resolution ensures this mapping exists")
+    }
+
+    fn query_handle_type(&self, handle: Handle) -> Type {
+        if let Some(ty) = self.current_function_scope().expect("just entered a function").query_variable_type(handle) {
+            ty.clone()
+        } else {
+            // TODO: generalise
+            match self.function_map.get(&handle).map(|info| info.function_type()) {
+                Some(ty) => Type::Function(ty.clone()),
+                None => Type::Error,
+            }
+        }
     }
 }
 
@@ -60,13 +72,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
 
     fn visit_identifier(&mut self, handle: Handle, _: &'ast Identifier<'ast>, _: Span) -> Type {
         let referenced_handle = self.map_ast_handle_to_declarator(handle);
-        let ty = if let Some(ty) = self.current_function_scope_mut().expect("just entered a function").query_variable_type(referenced_handle) {
-            ty.clone()
-        } else {
-            return Type::Error;
-        };
-
-        ty
+        self.query_handle_type(referenced_handle).clone()
     }
 
     fn visit_binary_operation(&mut self, _: Handle, node: &'ast BinaryOperation<'ast>, _: Span) -> Type {
@@ -102,7 +108,11 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             self.implicit_cast_table.insert(node.2 .0.as_handle(), compute_target_type(&rhs_type));
         }
 
-        if node.1.is_comparison_op() { Type::Bool } else { target_type }
+        if node.1.is_comparison_op() {
+            Type::Bool
+        } else {
+            target_type
+        }
     }
 
     fn visit_unary_operation(&mut self, _: Handle, node: &'ast UnaryOperation<'ast>, span: Span) -> Type {
@@ -117,7 +127,11 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
                 if !rhs_type.is_error() {
                     self.semantic_error_list.report_error(
                         span,
-                        format!("unary operator '{}' expects a numeric type, found '{}' instead", node.0.to_human_readable_str(), rhs_type),
+                        format!(
+                            "unary operator '{}' expects a numeric type, found a value of type '{}' instead",
+                            node.0.to_human_readable_str(),
+                            rhs_type
+                        ),
                     );
                 }
                 Type::Error
@@ -192,8 +206,8 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         Type::Void
     }
 
-    fn visit_function_declaration(&mut self, _: Handle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> Type {
-        self.enter_function_scope(UniqueFunctionIdentifier(node.name));
+    fn visit_function_declaration(&mut self, handle: Handle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> Type {
+        self.enter_function_scope(handle);
         let scope = self.current_function_scope_mut().expect("just entered a function");
         for arg in &node.args {
             scope
@@ -231,7 +245,6 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
 
     fn visit_return_statement(&mut self, _: Handle, node: &'ast ReturnStatement<'ast>, span: Span) -> Type {
         // TODO: implicit casts?
-        let function_name = self.current_function.as_ref().unwrap().0;
         if let Some(value) = &node.value {
             let returned_type = self.visit(value);
             if returned_type.is_error() {
@@ -242,23 +255,36 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             if returned_type != *function_return_type {
                 self.semantic_error_list.report_error(
                     span,
-                    format!(
-                        "function '{}' must return a value of type '{}', but this returns a value of type '{}'",
-                        function_name, function_return_type, returned_type,
-                    ),
+                    format!("function must return a value of type '{}', but this returns a value of type '{}'", function_return_type, returned_type,),
                 );
             }
         } else {
             let current_function = self.current_function_scope().expect("must be in function context");
             let function_return_type = current_function.return_type();
             if *function_return_type != Type::Void {
-                self.semantic_error_list.report_error(
-                    span,
-                    format!("function '{}' must return a value of type '{}', but this returns nothing", function_name, function_return_type),
-                );
+                self.semantic_error_list
+                    .report_error(span, format!("function must return a value of type '{}', but this returns nothing", function_return_type));
             }
         }
         // TODO: what happens if we return a value in a void function?
         Type::Void
+    }
+
+    fn visit_function_call(&mut self, _: Handle, node: &'ast FunctionCall<'ast>, _: Span) -> Type {
+        let callee_type = match self.visit(&node.callee) {
+            Type::Function(function) => function,
+            ty => {
+                self.semantic_error_list
+                    .report_error(node.callee.1, format!("expected a function, found a value of type '{}' instead", ty));
+                return Type::Error;
+            }
+        };
+        // TODO: validate argument count
+        println!("{:?}", callee_type);
+        for arg in &node.args {
+            // TODO: validate arguments
+            let arg_type = self.visit(arg);
+        }
+        callee_type.return_type.clone()
     }
 }

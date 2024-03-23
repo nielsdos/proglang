@@ -1,9 +1,10 @@
 use crate::syntax::ast::{Ast, BindingType};
 use crate::syntax::span::Spanned;
-use crate::types::type_system::Type;
+use crate::types::type_system::{FunctionType, Type};
 use crate::util::handle::Handle;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct ArgumentInfo<'ast> {
@@ -18,6 +19,10 @@ pub struct FunctionInfo<'ast> {
     variable_types: HashMap<Handle, Type>,
     args: &'ast [Spanned<ArgumentInfo<'ast>>],
     return_type: Type,
+    name: &'ast str,
+    declaration_handle: Handle,
+    // TODO: remove other duplicate data from this struct please
+    function_type: Rc<FunctionType>,
 }
 
 #[derive(Debug)]
@@ -45,6 +50,7 @@ impl<'ast> ArgumentInfo<'ast> {
         self.binding
     }
 
+    // TODO: this isn't stable upon resize???
     #[inline]
     pub fn as_handle(&self) -> Handle {
         self as *const _ as Handle
@@ -52,12 +58,20 @@ impl<'ast> ArgumentInfo<'ast> {
 }
 
 impl<'ast> FunctionInfo<'ast> {
-    pub fn new(body: &'ast Spanned<Ast<'ast>>, args: &'ast [Spanned<ArgumentInfo<'ast>>], return_type: Type) -> Self {
+    pub fn new(name: &'ast str, body: &'ast Spanned<Ast<'ast>>, args: &'ast [Spanned<ArgumentInfo<'ast>>], return_type: Type, declaration_handle: Handle) -> Self {
+        let function_type = FunctionType {
+            return_type: return_type.clone(),
+            arg_types: args.iter().map(|arg| arg.0.ty.clone()).collect(),
+        };
+
         Self {
             body,
             variable_types: HashMap::new(),
             args,
             return_type,
+            name,
+            declaration_handle,
+            function_type: Rc::new(function_type),
         }
     }
 
@@ -101,7 +115,17 @@ impl<'ast> FunctionInfo<'ast> {
     }
 
     #[inline]
-    pub fn as_handle(&self) -> Handle {
-        self as *const _ as Handle
+    pub fn declaration_handle(&self) -> Handle {
+        self.declaration_handle
+    }
+
+    #[inline]
+    pub fn function_type(&self) -> Rc<FunctionType> {
+        self.function_type.clone()
+    }
+
+    #[inline]
+    pub fn name(&self) -> &'ast str {
+        self.name
     }
 }

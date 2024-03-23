@@ -1,5 +1,4 @@
 use crate::analysis::semantic_analysis::SemanticAnalyser;
-use crate::analysis::unique_function_identifier::UniqueFunctionIdentifier;
 use crate::codegen::codegen_llvm::{CodeGenContext, CodeGenLLVM};
 use crate::types::function_info::FunctionInfo;
 
@@ -22,23 +21,23 @@ impl<'c> CodeGen<'c> {
     }
 
     fn codegen_functions(&mut self) {
-        for (name, function_info) in self.semantic_analyser.function_list_iter() {
-            self.declare_function(name, function_info);
+        for (_, function_info) in self.semantic_analyser.function_list_iter() {
+            self.declare_function(function_info);
         }
 
-        for (name, function_info) in self.semantic_analyser.function_list_iter() {
-            self.codegen_function(name, function_info);
+        for (_, function_info) in self.semantic_analyser.function_list_iter() {
+            self.codegen_function(function_info);
         }
 
         self.llvm_codegen.optimize();
     }
 
-    fn declare_function(&mut self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo) {
-        self.llvm_codegen.declare_function(name, function_info);
+    fn declare_function(&mut self, function_info: &FunctionInfo) {
+        self.llvm_codegen.declare_function(function_info);
     }
 
-    fn codegen_function(&mut self, name: &UniqueFunctionIdentifier, function_info: &FunctionInfo) {
-        self.llvm_codegen.codegen_function(name, function_info);
+    fn codegen_function(&mut self, function_info: &FunctionInfo) {
+        self.llvm_codegen.codegen_function(function_info);
     }
 
     pub fn dump(&self) {

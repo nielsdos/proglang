@@ -33,8 +33,8 @@ impl<'ast, 'f> ScopeResolutionPass<'ast, 'f> {
     pub fn register_functions(&mut self, function_map: &'ast FunctionMap<'ast>) {
         assert!(self.environment_stack.is_empty());
         self.push_scope();
-        for (identifier, function_declaration) in function_map {
-            self.bind(identifier.as_str(), function_declaration.as_handle());
+        for function_declaration in function_map.values() {
+            self.bind(function_declaration.name(), function_declaration.declaration_handle());
         }
     }
 
