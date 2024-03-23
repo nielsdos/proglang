@@ -9,3 +9,8 @@ fn test() -> int:
     let ff = f()
     return (foo())() + ff()
 
+fn twice(fn () -> int f) -> int:
+    return f() + f()
+
+fn bar2() -> int:
+    return twice(bar)
