@@ -190,7 +190,9 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
             .then_ignore(just(Token::StatementEnd))
             .map(|(expression, span)| (Ast::ReturnStatement(ReturnStatement { value: expression.map(Box::new) }), span));
 
-        let statement = choice((declaration, assignment, if_check, return_));
+        let expression_statement = parse_expression().then_ignore(just(Token::StatementEnd));
+
+        let statement = choice((declaration, assignment, if_check, return_, expression_statement));
 
         statement.repeated().at_least(1).collect::<Vec<_>>().map(|list| {
             let span = compute_span_over_slice(&list);

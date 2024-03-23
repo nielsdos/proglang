@@ -1,10 +1,14 @@
+fn foo():
+    return
+
 fn test(int a, int b) -> int:
     return factorial(a, b)
 
 fn factorial(int x, int b) -> int:
-    # TODO: test calling function returning void
     # TODO: support this: let f = factorial & higher-order functions
     # TODO: support currying???
+    factorial(1, 1)
+    foo()
     if x <= 1:
         return 1
     else:
