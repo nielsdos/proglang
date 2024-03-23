@@ -457,21 +457,18 @@ impl<'ctx> CodeGenInner<'ctx> {
                 let handle = self.semantic_analyser.identifier_to_declaration(callee.0.as_handle());
                 let function_value = &self.function_declaration_handle_to_function_value[&handle];
 
-                Some(
-                    function_context
-                        .builder
-                        .build_call(
-                            *function_value,
-                            args.iter()
-                                .map(|arg| self.emit_instructions(arg, function_context, codegen).expect("argument should have a value").into())
-                                .collect::<SmallVec<[_; 4]>>()
-                                .as_slice(),
-                            "call",
-                        )
-                        .try_as_basic_value()
-                        .left()
-                        .unwrap(), /* TODO */
-                )
+                function_context
+                    .builder
+                    .build_call(
+                        *function_value,
+                        args.iter()
+                            .map(|arg| self.emit_instructions(arg, function_context, codegen).expect("argument should have a value").into())
+                            .collect::<SmallVec<[_; 4]>>()
+                            .as_slice(),
+                        "call",
+                    )
+                    .try_as_basic_value()
+                    .left()
             }
             _ => {
                 println!("Unhandled AST: {:?}", ast.0);
