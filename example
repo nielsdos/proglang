@@ -1,14 +1,13 @@
-fn test(int a) -> int:
-    return factorial(a)
+fn test(int a, int b) -> int:
+    return factorial(a, b)
 
-fn factorial(int x) -> int:
-    # TODO: test function calls with multiple args
+fn factorial(int x, int b) -> int:
     # TODO: test calling function returning void
     # TODO: support this: let f = factorial & higher-order functions
     # TODO: support currying???
     if x <= 1:
         return 1
     else:
-        return x * factorial(x - 1)
+        return x * factorial(x - 1, 1)
 
 
