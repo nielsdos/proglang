@@ -35,16 +35,11 @@ impl<'ast> SemanticAnalyser<'ast> {
         }
     }
 
-    // TODO: we should use ::new functions instead of directly instantiating structs here...
     pub fn analyse(&mut self) {
         let mut semantic_error_list = SemanticErrorList::default();
 
         self.function_map = {
-            let mut function_collector = FunctionCollectorPass {
-                function_map: Default::default(),
-                semantic_error_list: &mut semantic_error_list,
-                seen_function_names: Default::default(),
-            };
+            let mut function_collector = FunctionCollectorPass::new(&mut semantic_error_list);
             function_collector.visit(self.ast);
             function_collector.function_map
         };
@@ -62,22 +57,12 @@ impl<'ast> SemanticAnalyser<'ast> {
         }
 
         let (implicit_cast_table, indirect_call_function_types) = {
-            let mut type_checker = TypeCheckerPass {
-                implicit_cast_table: Default::default(),
-                current_function: None,
-                function_map: &mut self.function_map,
-                scope_reference_map: &scope_reference_map,
-                binding_types: Default::default(),
-                indirect_call_function_types: Default::default(),
-                semantic_error_list: &mut semantic_error_list,
-            };
+            let mut type_checker = TypeCheckerPass::new(&mut self.function_map, &scope_reference_map, &mut semantic_error_list);
             type_checker.visit(self.ast);
             (type_checker.implicit_cast_table, type_checker.indirect_call_function_types)
         };
 
-        let mut return_check_pass = ReturnCheckPass {
-            semantic_error_list: &mut semantic_error_list,
-        };
+        let mut return_check_pass = ReturnCheckPass::new(&mut semantic_error_list);
         return_check_pass.visit(self.ast);
 
         self.scope_reference_map = scope_reference_map;

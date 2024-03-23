@@ -523,14 +523,12 @@ impl<'ctx> CodeGenInner<'ctx> {
 
                 let handle = self.semantic_analyser.try_identifier_to_declaration(callee.0.as_handle());
 
-                match handle.and_then(|handle| self.function_declaration_handle_to_function_value.get(&handle)) {
-                    Some(function_value) => {
-                        function_context
-                            .builder
-                            .build_direct_call(*function_value, function_args.as_slice(), "direct_call")
-                            .try_as_basic_value()
-                            .left()
-                    }
+                match handle.and_then(|handle| self.function_declaration_handle_to_function_value.get(handle)) {
+                    Some(function_value) => function_context
+                        .builder
+                        .build_direct_call(*function_value, function_args.as_slice(), "direct_call")
+                        .try_as_basic_value()
+                        .left(),
                     None => {
                         let callee_ty = self.semantic_analyser.indirect_call_function_type(callee.0.as_handle()).expect("callee should have a type");
                         let llvm_callee_ty = self.get_llvm_type_raw(&Type::Function(callee_ty.clone())); // TODO: can be done more efficiently

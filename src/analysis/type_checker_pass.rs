@@ -24,6 +24,18 @@ pub(crate) struct TypeCheckerPass<'ast, 'f> {
 }
 
 impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
+    pub fn new(function_map: &'f mut HashMap<Handle, FunctionInfo<'ast>>, scope_reference_map: &'f ScopeReferenceMap, semantic_error_list: &'f mut SemanticErrorList) -> Self {
+        Self {
+            implicit_cast_table: Default::default(),
+            current_function: None,
+            function_map,
+            scope_reference_map,
+            binding_types: Default::default(),
+            indirect_call_function_types: Default::default(),
+            semantic_error_list,
+        }
+    }
+
     fn current_function_scope(&self) -> Option<&FunctionInfo<'ast>> {
         self.current_function.as_ref().and_then(|name| self.function_map.get(name))
     }

@@ -13,6 +13,16 @@ pub(crate) struct FunctionCollectorPass<'f, 'ast> {
     pub(crate) seen_function_names: HashMap<&'ast str, Span>,
 }
 
+impl<'f, 'ast> FunctionCollectorPass<'f, 'ast> {
+    pub fn new(semantic_error_list: &'f mut SemanticErrorList) -> Self {
+        Self {
+            function_map: Default::default(),
+            semantic_error_list,
+            seen_function_names: Default::default(),
+        }
+    }
+}
+
 impl<'f, 'ast> SemanticAnalysisPass<'ast, ()> for FunctionCollectorPass<'f, 'ast> {
     fn visit_function_declaration(&mut self, handle: Handle, node: &'ast FunctionDeclaration<'ast>, span: Span) {
         // TODO: in the future, when we support lambdas and closures, we should visit the function bodies

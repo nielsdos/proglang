@@ -9,6 +9,12 @@ pub(crate) struct ReturnCheckPass<'f> {
     pub(crate) semantic_error_list: &'f mut SemanticErrorList,
 }
 
+impl<'f> ReturnCheckPass<'f> {
+    pub fn new(semantic_error_list: &'f mut SemanticErrorList) -> Self {
+        Self { semantic_error_list }
+    }
+}
+
 impl<'f, 'ast> SemanticAnalysisPass<'ast, bool> for ReturnCheckPass<'f> {
     fn visit_statement_list(&mut self, _: Handle, node: &'ast StatementList<'ast>, _: Span) -> bool {
         for statement in &node.0 {
