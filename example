@@ -1,17 +1,10 @@
-fn foo():
-    return
+fn bar() -> int:
+    return 1
 
-fn test(int a, int b) -> int:
-    return factorial(a, b)
-
-fn factorial(int x, int b) -> int:
-    # TODO: support this: let f = factorial & higher-order functions
-    # TODO: support currying???
-    factorial(1, 1)
-    foo()
-    if x <= 1:
-        return 1
-    else:
-        return x * factorial(x - 1, 1)
-
+fn foo() -> int:
+    let b = bar
+    let bb = b
+    let a = bb()
+    let aa = a
+    return aa
 

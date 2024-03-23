@@ -1,3 +1,5 @@
+extern crate core;
+
 use crate::analysis::semantic_analysis::SemanticAnalyser;
 use crate::codegen::codegen_driver::CodeGen;
 use crate::codegen::codegen_llvm::CodeGenContext;

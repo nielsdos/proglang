@@ -174,7 +174,9 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
     }
 
     fn visit_declaration(&mut self, handle: Handle, node: &'ast Declaration<'ast>, _: Span) -> Type {
+        println!("declaration: {:?}", node);
         let rhs_type = self.visit(&node.assignment.1);
+        println!("rhs_type: {:?}", rhs_type);
         self.current_function_scope_mut()
             .expect("must be in function context")
             .update_variable_type(handle, rhs_type.clone())
@@ -282,24 +284,15 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         if node.args.len() != callee_type.arg_types.len() {
             self.semantic_error_list.report_error(
                 span,
-                format!(
-                    "expected {} arguments, but this function call has {} arguments",
-                    callee_type.arg_types.len(),
-                    node.args.len()
-                ),
+                format!("expected {} arguments, but this function call has {} arguments", callee_type.arg_types.len(), node.args.len()),
             );
         }
 
         for (arg, expected_type) in node.args.iter().zip(callee_type.arg_types.iter()) {
             let arg_type = self.visit(arg);
             if arg_type != *expected_type {
-                self.semantic_error_list.report_error(
-                    arg.1,
-                    format!(
-                        "expected an argument of type '{}', but this argument has type '{}'",
-                        expected_type, arg_type
-                    ),
-                );
+                self.semantic_error_list
+                    .report_error(arg.1, format!("expected an argument of type '{}', but this argument has type '{}'", expected_type, arg_type));
             }
         }
 

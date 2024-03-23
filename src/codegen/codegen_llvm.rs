@@ -5,7 +5,7 @@ use crate::syntax::ast::{
 };
 use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
-use crate::types::type_system::{ImplicitCast, Type};
+use crate::types::type_system::{FunctionType, ImplicitCast, Type};
 use crate::util::handle::Handle;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
@@ -13,9 +13,9 @@ use inkwell::intrinsics::Intrinsic;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
 use inkwell::targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple};
-use inkwell::types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FloatType, IntType, VoidType};
+use inkwell::types::{AnyTypeEnum, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FloatType, IntType, VoidType};
 use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue};
-use inkwell::{IntPredicate, OptimizationLevel};
+use inkwell::{types, AddressSpace, IntPredicate, OptimizationLevel};
 use smallvec::SmallVec;
 use std::collections::HashMap;
 use std::path::Path;
@@ -30,7 +30,7 @@ impl Default for CodeGenContext {
 
 struct VariableInfo<'ctx> {
     ptr: PointerValue<'ctx>,
-    ty: BasicTypeEnum<'ctx>,
+    ty: AnyTypeEnum<'ctx>,
 }
 
 struct CodeGenFunctionContext<'ctx> {
@@ -44,15 +44,7 @@ struct CodeGenInner<'ctx> {
     semantic_analyser: &'ctx SemanticAnalyser<'ctx>,
     function_declaration_handle_to_function_value: HashMap<Handle, FunctionValue<'ctx>>,
     optimization_level: u32,
-}
-
-pub struct CodeGenLLVM<'ctx> {
-    context: &'ctx CodeGenContext,
-    optimization_level: u32,
-    semantic_analyser: &'ctx SemanticAnalyser<'ctx>,
-    modules: Vec<CodeGenInner<'ctx>>,
-    type_to_llvm_type: HashMap<Type, BasicTypeEnum<'ctx>>,
-    pass_managers: Vec<PassManager<Module<'ctx>>>,
+    type_to_llvm_type: HashMap<Type, AnyTypeEnum<'ctx>>,
     // Primitive types here for faster lookup
     void_type: VoidType<'ctx>,
     int_type: IntType<'ctx>,
@@ -60,29 +52,22 @@ pub struct CodeGenLLVM<'ctx> {
     bool_type: IntType<'ctx>,
 }
 
+pub struct CodeGenLLVM<'ctx> {
+    context: &'ctx CodeGenContext,
+    optimization_level: u32,
+    semantic_analyser: &'ctx SemanticAnalyser<'ctx>,
+    modules: Vec<CodeGenInner<'ctx>>,
+    pass_managers: Vec<PassManager<Module<'ctx>>>,
+}
+
 impl<'ctx> CodeGenLLVM<'ctx> {
     pub fn new(context: &'ctx CodeGenContext, semantic_analyser: &'ctx SemanticAnalyser, optimization_level: u32) -> Self {
-        let mut type_to_llvm_type: HashMap<Type, BasicTypeEnum<'ctx>> = HashMap::new();
-
-        // Store basic types
-        let int_type = context.0.i64_type();
-        let double_type = context.0.f64_type();
-        let bool_type = context.0.bool_type();
-        type_to_llvm_type.insert(Type::Int, BasicTypeEnum::IntType(int_type));
-        type_to_llvm_type.insert(Type::Double, BasicTypeEnum::FloatType(double_type));
-        type_to_llvm_type.insert(Type::Bool, BasicTypeEnum::IntType(bool_type));
-
         Self {
             context,
             optimization_level,
             semantic_analyser,
             modules: Vec::new(),
-            type_to_llvm_type,
-            void_type: context.0.void_type(),
             pass_managers: Vec::new(),
-            int_type,
-            double_type,
-            bool_type,
         }
     }
 
@@ -133,14 +118,14 @@ impl<'ctx> CodeGenLLVM<'ctx> {
 
     pub fn add_module(&mut self, module_name: &'ctx str) {
         let module = self.context.0.create_module(module_name);
-        let inner = CodeGenInner::new(module, self.semantic_analyser, self.optimization_level);
+        let inner = CodeGenInner::new(module, self.semantic_analyser, self.optimization_level, &self.context.0);
         self.modules.push(inner);
         self.pass_managers.push(self.create_pass_manager());
     }
 
     pub fn declare_function(&mut self, function_info: &FunctionInfo) {
         // TODO: hardcoded to first module right now
-        let function_value = self.modules[0].declare_function(function_info, self);
+        let function_value = self.modules[0].declare_function(function_info);
         self.modules[0].function_declaration_handle_to_function_value.insert(function_info.declaration_handle(), function_value);
     }
 
@@ -148,6 +133,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
         let builder = self.context.0.create_builder();
 
         // TODO: hardcoded to first module right now
+        self.modules[0].codegen_function_prepare_types(function_info);
         self.modules[0].codegen_function(function_info, builder, self);
     }
 
@@ -163,33 +149,100 @@ impl<'ctx> CodeGenLLVM<'ctx> {
 }
 
 impl<'ctx> CodeGenInner<'ctx> {
-    pub fn new(module: Module<'ctx>, semantic_analyser: &'ctx SemanticAnalyser<'ctx>, optimization_level: u32) -> Self {
+    pub fn new(module: Module<'ctx>, semantic_analyser: &'ctx SemanticAnalyser<'ctx>, optimization_level: u32, context: &'ctx Context) -> Self {
+        let mut type_to_llvm_type = HashMap::new();
+
+        // Store basic types
+        let int_type = context.i64_type();
+        let double_type = context.f64_type();
+        let bool_type = context.bool_type();
+        type_to_llvm_type.insert(Type::Int, AnyTypeEnum::IntType(int_type));
+        type_to_llvm_type.insert(Type::Double, AnyTypeEnum::FloatType(double_type));
+        type_to_llvm_type.insert(Type::Bool, AnyTypeEnum::IntType(bool_type));
+
         Self {
             module,
             semantic_analyser,
             function_declaration_handle_to_function_value: Default::default(),
             optimization_level,
+            type_to_llvm_type,
+            void_type: context.void_type(),
+            int_type,
+            double_type,
+            bool_type,
         }
     }
 
-    pub fn declare_function(&self, function_info: &FunctionInfo, codegen: &CodeGenLLVM<'ctx>) -> FunctionValue<'ctx> {
+    fn construct_llvm_function_type(&mut self, function_type: &FunctionType) -> types::FunctionType<'ctx> {
+        let return_type = self.get_or_insert_llvm_type(&function_type.return_type);
+        let arg_types = function_type
+            .arg_types
+            .iter()
+            .map(|arg| self.get_or_insert_llvm_type(arg).into())
+            .collect::<SmallVec<[BasicMetadataTypeEnum<'ctx>; 4]>>();
+        return_type.fn_type(arg_types.as_slice(), false)
+    }
+
+    fn convert_to_basic_type(&self, ty: &AnyTypeEnum<'ctx>) -> BasicTypeEnum<'ctx> {
+        match ty {
+            AnyTypeEnum::FunctionType(ty) => BasicTypeEnum::PointerType(ty.ptr_type(AddressSpace::default())),
+            AnyTypeEnum::IntType(ty) => BasicTypeEnum::IntType(*ty),
+            AnyTypeEnum::FloatType(ty) => BasicTypeEnum::FloatType(*ty),
+            AnyTypeEnum::PointerType(ty) => BasicTypeEnum::PointerType(*ty),
+            AnyTypeEnum::StructType(ty) => BasicTypeEnum::StructType(*ty),
+            AnyTypeEnum::ArrayType(ty) => BasicTypeEnum::ArrayType(*ty),
+            AnyTypeEnum::VectorType(ty) => BasicTypeEnum::VectorType(*ty),
+            AnyTypeEnum::VoidType(_) => unreachable!(),
+        }
+    }
+
+    fn get_or_insert_llvm_type(&mut self, ty: &Type) -> BasicTypeEnum<'ctx> {
+        if let Some(ty) = self.type_to_llvm_type.get(ty) {
+            self.convert_to_basic_type(ty)
+        } else {
+            let llvm_ty = match ty {
+                Type::Function(ty) => self.construct_llvm_function_type(ty).into(),
+                _ => unimplemented!(),
+            };
+            self.type_to_llvm_type.insert(ty.clone(), llvm_ty);
+            self.convert_to_basic_type(&llvm_ty)
+        }
+    }
+
+    fn get_llvm_type_raw(&self, ty: &Type) -> &AnyTypeEnum<'ctx> {
+        self.type_to_llvm_type.get(ty).expect("type should exist")
+    }
+
+    fn get_llvm_type(&self, ty: &Type) -> BasicTypeEnum<'ctx> {
+        self.convert_to_basic_type(self.get_llvm_type_raw(ty))
+    }
+
+    pub fn declare_function(&mut self, function_info: &FunctionInfo) -> FunctionValue<'ctx> {
         let arg_types = function_info
             .args()
             .iter()
             .map(|arg| {
                 let arg = &arg.0;
-                let ty = codegen.type_to_llvm_type[arg.ty()];
+                let ty = self.get_or_insert_llvm_type(arg.ty());
                 BasicMetadataTypeEnum::from(ty)
             })
             .collect::<SmallVec<[BasicMetadataTypeEnum<'ctx>; 4]>>();
 
+        // TODO: use function type construction helper (and fixup void in that place)
         let function_type = if *function_info.return_type() == Type::Void {
-            codegen.void_type.fn_type(arg_types.as_slice(), false)
+            self.void_type.fn_type(arg_types.as_slice(), false)
         } else {
-            codegen.type_to_llvm_type[function_info.return_type()].fn_type(arg_types.as_slice(), false)
+            self.get_or_insert_llvm_type(function_info.return_type()).fn_type(arg_types.as_slice(), false)
         };
 
         self.module.add_function(function_info.name(), function_type, None)
+    }
+
+    // TODO: can this be more efficient than a 2-pass system?
+    pub fn codegen_function_prepare_types(&mut self, function_info: &FunctionInfo) {
+        for (_, variable_type) in function_info.variables() {
+            self.get_or_insert_llvm_type(variable_type);
+        }
     }
 
     pub fn codegen_function(&self, function_info: &FunctionInfo, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
@@ -202,15 +255,16 @@ impl<'ctx> CodeGenInner<'ctx> {
         let mut variables = HashMap::new();
 
         // Create memory locations for the local variables
-        for (variable_name, variable_type) in function_info.variables() {
+        for (variable_handle, variable_type) in function_info.variables() {
+            println!("Creating variable: {:?} -> {:?}", variable_handle, variable_type);
             // Can't have a declaration without an assignment, so a default value is not necessary
-            let variable_type = codegen.type_to_llvm_type[variable_type];
-            let variable_memory = builder.build_alloca(variable_type, "var");
+            let variable_type = self.get_llvm_type_raw(variable_type);
+            let variable_memory = builder.build_alloca(self.convert_to_basic_type(variable_type), "var");
             variables.insert(
-                variable_name,
+                variable_handle,
                 VariableInfo {
                     ptr: variable_memory,
-                    ty: variable_type,
+                    ty: *variable_type,
                 },
             );
         }
@@ -241,25 +295,25 @@ impl<'ctx> CodeGenInner<'ctx> {
         }
     }
 
-    fn emit_implicit_cast_if_necessary(&self, handle: Handle, value: BasicValueEnum<'ctx>, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) -> BasicValueEnum<'ctx> {
+    fn emit_implicit_cast_if_necessary(&self, handle: Handle, value: BasicValueEnum<'ctx>, function_context: &CodeGenFunctionContext<'ctx>) -> BasicValueEnum<'ctx> {
         if let Some(implicit_cast_entry) = self.semantic_analyser.implicit_cast_entry(handle) {
             match implicit_cast_entry {
-                ImplicitCast::IntZext => function_context.builder.build_int_z_extend(value.into_int_value(), codegen.int_type, "zext").as_basic_value_enum(),
+                ImplicitCast::IntZext => function_context.builder.build_int_z_extend(value.into_int_value(), self.int_type, "zext").as_basic_value_enum(),
                 ImplicitCast::UnsignedIntToDouble => function_context
                     .builder
-                    .build_unsigned_int_to_float(value.into_int_value(), codegen.double_type, "double")
+                    .build_unsigned_int_to_float(value.into_int_value(), self.double_type, "double")
                     .as_basic_value_enum(),
                 ImplicitCast::SignedIntToDouble => function_context
                     .builder
-                    .build_signed_int_to_float(value.into_int_value(), codegen.double_type, "double")
+                    .build_signed_int_to_float(value.into_int_value(), self.double_type, "double")
                     .as_basic_value_enum(),
                 ImplicitCast::IntToBool => function_context
                     .builder
-                    .build_int_compare(inkwell::IntPredicate::NE, value.into_int_value(), codegen.int_type.const_int(0, false), "int_to_bool")
+                    .build_int_compare(inkwell::IntPredicate::NE, value.into_int_value(), self.int_type.const_int(0, false), "int_to_bool")
                     .as_basic_value_enum(),
                 ImplicitCast::DoubleToBool => function_context
                     .builder
-                    .build_float_compare(inkwell::FloatPredicate::UNE, value.into_float_value(), codegen.double_type.const_float(0.0), "double_to_bool")
+                    .build_float_compare(inkwell::FloatPredicate::UNE, value.into_float_value(), self.double_type.const_float(0.0), "double_to_bool")
                     .as_basic_value_enum(),
             }
         } else {
@@ -268,17 +322,27 @@ impl<'ctx> CodeGenInner<'ctx> {
     }
 
     fn emit_instructions_with_casts<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) -> BasicValueEnum<'ctx> {
-        let value = self.emit_instructions(ast, function_context, codegen).expect("ast should create a value");
-        self.emit_implicit_cast_if_necessary(ast.0.as_handle(), value, function_context, codegen)
+        let value = self.emit_instructions(ast, function_context, codegen).expect("ast should result in a value");
+        self.emit_implicit_cast_if_necessary(ast.0.as_handle(), value, function_context)
     }
 
     fn emit_instructions<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) -> Option<BasicValueEnum<'ctx>> {
         match &ast.0 {
             Ast::Identifier(Identifier(name)) => {
                 let handle = self.semantic_analyser.identifier_to_declaration(ast.0.as_handle());
-                let variable = function_context.variables.get(&handle).expect("variable should exist");
-                let value = function_context.builder.build_load(variable.ty, variable.ptr, name);
-                Some(value)
+                println!("Loading variable: {:?} -> {:?}", ast.0.as_handle(), handle);
+
+                match function_context.variables.get(&handle) {
+                    Some(variable) => {
+                        let value = function_context.builder.build_load(self.convert_to_basic_type(&variable.ty), variable.ptr, name);
+                        Some(value)
+                    }
+                    None => {
+                        let function_value = self.function_declaration_handle_to_function_value.get(&handle).expect("function should exist");
+                        let function_pointer = BasicValueEnum::PointerValue(function_value.as_global_value().as_pointer_value());
+                        Some(function_pointer)
+                    }
+                }
             }
             Ast::UnaryOperation(UnaryOperation(operation, operand)) => {
                 let operand_value = self.emit_instructions_with_casts(operand, function_context, codegen);
@@ -364,14 +428,14 @@ impl<'ctx> CodeGenInner<'ctx> {
                             } else {
                                 let lhs_value = lhs_value.into_int_value();
                                 let rhs_value = rhs_value.into_int_value();
-                                let sign_lhs = function_context.builder.build_and(lhs_value, codegen.int_type.const_int(1 << 63, false), "sign_lhs");
-                                let sign_rhs = function_context.builder.build_and(rhs_value, codegen.int_type.const_int(1 << 63, false), "sign_rhs");
+                                let sign_lhs = function_context.builder.build_and(lhs_value, self.int_type.const_int(1 << 63, false), "sign_lhs");
+                                let sign_rhs = function_context.builder.build_and(rhs_value, self.int_type.const_int(1 << 63, false), "sign_rhs");
                                 let division = function_context.builder.build_int_signed_div(lhs_value, rhs_value, "div");
                                 let modulo = function_context.builder.build_int_signed_rem(lhs_value, rhs_value, "mod");
                                 let comparison_sign = function_context.builder.build_int_compare(IntPredicate::EQ, sign_lhs, sign_rhs, "sign_cmp");
-                                let comparison_mod = function_context.builder.build_int_compare(IntPredicate::EQ, modulo, codegen.int_type.const_int(0, false), "mod_cmp");
+                                let comparison_mod = function_context.builder.build_int_compare(IntPredicate::EQ, modulo, self.int_type.const_int(0, false), "mod_cmp");
                                 let both_conditions = function_context.builder.build_or(comparison_sign, comparison_mod, "both_cmp");
-                                let different_sign_result = function_context.builder.build_int_sub(division, codegen.int_type.const_int(1, true), "diff_sign_div");
+                                let different_sign_result = function_context.builder.build_int_sub(division, self.int_type.const_int(1, true), "diff_sign_div");
                                 let result = function_context.builder.build_select(both_conditions, division, different_sign_result, "whole_div_int");
                                 Some(result)
                             }
@@ -430,9 +494,9 @@ impl<'ctx> CodeGenInner<'ctx> {
 
                 None
             }
-            Ast::LiteralInt(LiteralInt(value)) => Some(codegen.int_type.const_int(*value as u64, false).into()),
-            Ast::LiteralBool(LiteralBool(bool)) => Some(codegen.bool_type.const_int(if *bool { 1 } else { 0 }, false).into()),
-            Ast::LiteralFloat(LiteralFloat(value)) => Some(codegen.double_type.const_float(*value).into()),
+            Ast::LiteralInt(LiteralInt(value)) => Some(self.int_type.const_int(*value as u64, false).into()),
+            Ast::LiteralBool(LiteralBool(bool)) => Some(self.bool_type.const_int(if *bool { 1 } else { 0 }, false).into()),
+            Ast::LiteralFloat(LiteralFloat(value)) => Some(self.double_type.const_float(*value).into()),
             Ast::Assignment(Assignment(_, expression))
             | Ast::Declaration(Declaration {
                 assignment: Assignment(_, expression),
@@ -454,21 +518,39 @@ impl<'ctx> CodeGenInner<'ctx> {
                 None
             }
             Ast::FunctionCall(FunctionCall { callee, args }) => {
-                let handle = self.semantic_analyser.identifier_to_declaration(callee.0.as_handle());
-                let function_value = &self.function_declaration_handle_to_function_value[&handle];
+                let function_value = self.emit_instructions(callee, function_context, codegen).expect("callee should have a value");
 
-                function_context
-                    .builder
-                    .build_call(
-                        *function_value,
-                        args.iter()
-                            .map(|arg| self.emit_instructions(arg, function_context, codegen).expect("argument should have a value").into())
-                            .collect::<SmallVec<[_; 4]>>()
-                            .as_slice(),
-                        "call",
-                    )
-                    .try_as_basic_value()
-                    .left()
+                let callee_handle = self.semantic_analyser.identifier_to_declaration(callee.0.as_handle());
+                let callee_var_info = function_context.variables.get(&callee_handle).expect("callee type should exist");
+                //let callee_type = &self.pointer_type_to_element_type[&callee_var_info.ty.type_id()];
+
+                let function_args = args
+                    .iter()
+                    .map(|arg| self.emit_instructions(arg, function_context, codegen).expect("argument should have a value").into())
+                    .collect::<SmallVec<[_; 4]>>();
+
+                // TODO: disambiguate between direct vs indirect calls
+                match function_value {
+                    BasicValueEnum::PointerValue(ptr) => function_context
+                        .builder
+                        .build_indirect_call(callee_var_info.ty.into_function_type(), ptr, function_args.as_slice(), "indirect_call")
+                        .try_as_basic_value()
+                        .left(),
+                    _ => todo!(),
+                }
+
+                /*function_context
+                .builder
+                .build_call(
+                    function_value.into_pointer_value(),
+                    args.iter()
+                        .map(|arg| self.emit_instructions(arg, function_context, codegen).expect("argument should have a value").into())
+                        .collect::<SmallVec<[_; 4]>>()
+                        .as_slice(),
+                    "call",
+                )
+                .try_as_basic_value()
+                .left()*/
             }
             _ => {
                 println!("Unhandled AST: {:?}", ast.0);
