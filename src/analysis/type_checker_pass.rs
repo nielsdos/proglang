@@ -270,7 +270,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         Type::Void
     }
 
-    fn visit_function_call(&mut self, _: Handle, node: &'ast FunctionCall<'ast>, _: Span) -> Type {
+    fn visit_function_call(&mut self, _: Handle, node: &'ast FunctionCall<'ast>, span: Span) -> Type {
         let callee_type = match self.visit(&node.callee) {
             Type::Function(function) => function,
             ty => {
@@ -279,12 +279,31 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
                 return Type::Error;
             }
         };
-        // TODO: validate argument count
-        println!("{:?}", callee_type);
-        for arg in &node.args {
-            // TODO: validate arguments
-            let arg_type = self.visit(arg);
+
+        if node.args.len() != callee_type.arg_types.len() {
+            self.semantic_error_list.report_error(
+                span,
+                format!(
+                    "expected {} arguments, but this function call has {} arguments",
+                    callee_type.arg_types.len(),
+                    node.args.len()
+                ),
+            );
         }
+
+        for (arg, expected_type) in node.args.iter().zip(callee_type.arg_types.iter()) {
+            let arg_type = self.visit(arg);
+            if arg_type != *expected_type {
+                self.semantic_error_list.report_error(
+                    arg.1,
+                    format!(
+                        "expected an argument of type '{}', but this argument has type '{}'",
+                        expected_type, arg_type
+                    ),
+                );
+            }
+        }
+
         callee_type.return_type.clone()
     }
 }
