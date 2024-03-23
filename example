@@ -4,10 +4,13 @@ fn bar() -> int:
 fn foo() -> fn () -> int:
     return bar
 
+fn foofoo() -> fn () -> fn () -> int:
+    return foo
+
 fn test() -> int:
     let f = foo
     let ff = f()
-    return (foo())() + ff()
+    return (foo())() + ff() + ((foofoo())())()
 
 fn twice(fn () -> int f) -> int:
     return f() + f()
