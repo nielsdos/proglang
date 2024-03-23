@@ -518,39 +518,32 @@ impl<'ctx> CodeGenInner<'ctx> {
                 None
             }
             Ast::FunctionCall(FunctionCall { callee, args }) => {
-                let function_value = self.emit_instructions(callee, function_context, codegen).expect("callee should have a value");
-
-                let callee_handle = self.semantic_analyser.identifier_to_declaration(callee.0.as_handle());
-                let callee_var_info = function_context.variables.get(&callee_handle).expect("callee type should exist");
-                //let callee_type = &self.pointer_type_to_element_type[&callee_var_info.ty.type_id()];
-
                 let function_args = args
                     .iter()
                     .map(|arg| self.emit_instructions(arg, function_context, codegen).expect("argument should have a value").into())
                     .collect::<SmallVec<[_; 4]>>();
 
-                // TODO: disambiguate between direct vs indirect calls
-                match function_value {
-                    BasicValueEnum::PointerValue(ptr) => function_context
-                        .builder
-                        .build_indirect_call(callee_var_info.ty.into_function_type(), ptr, function_args.as_slice(), "indirect_call")
-                        .try_as_basic_value()
-                        .left(),
-                    _ => todo!(),
+                let handle = self.semantic_analyser.try_identifier_to_declaration(callee.0.as_handle());
+                match handle.and_then(|handle| function_context.variables.get(handle)) {
+                    // Indirect call case
+                    Some(callee_var_info) => {
+                        let function_value = self.emit_instructions(callee, function_context, codegen).expect("callee should have a value");
+                        function_context
+                            .builder
+                            .build_indirect_call(callee_var_info.ty.into_function_type(), function_value.into_pointer_value(), function_args.as_slice(), "indirect_call")
+                            .try_as_basic_value()
+                            .left()
+                    }
+                    // Direct call case
+                    None => {
+                        let function_value = self.function_declaration_handle_to_function_value[&self.semantic_analyser.identifier_to_declaration(callee.0.as_handle())];
+                        function_context
+                            .builder
+                            .build_direct_call(function_value, function_args.as_slice(), "direct_call")
+                            .try_as_basic_value()
+                            .left()
+                    }
                 }
-
-                /*function_context
-                .builder
-                .build_call(
-                    function_value.into_pointer_value(),
-                    args.iter()
-                        .map(|arg| self.emit_instructions(arg, function_context, codegen).expect("argument should have a value").into())
-                        .collect::<SmallVec<[_; 4]>>()
-                        .as_slice(),
-                    "call",
-                )
-                .try_as_basic_value()
-                .left()*/
             }
             _ => {
                 println!("Unhandled AST: {:?}", ast.0);

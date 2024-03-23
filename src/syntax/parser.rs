@@ -8,7 +8,7 @@ use crate::syntax::lexer::lexer;
 use crate::syntax::span::{Span, Spanned};
 use crate::syntax::token::{Token, TokenTree};
 use crate::types::function_info::ArgumentInfo;
-use crate::types::type_system::Type;
+use crate::types::type_system::{FunctionType, Type};
 use ariadne::{sources, Color, Label, Report, ReportKind};
 use chumsky::input::{BoxedStream, SpannedInput, Stream};
 use chumsky::prelude::*;
@@ -202,12 +202,32 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
 }
 
 fn parse_type<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Type, ParserExtra<'tokens, 'src>> {
-    let ty_name = select! {
-        Token::Identifier("float") => Type::Double,
-        Token::Identifier("int") => Type::Int,
-        Token::Identifier("bool") => Type::Bool,
-    };
-    ty_name
+    recursive(|parse_type| {
+        let predefined_ty_name = select! {
+            Token::Identifier("float") => Type::Double,
+            Token::Identifier("int") => Type::Int,
+            Token::Identifier("bool") => Type::Bool,
+        };
+
+        let function_type = just(Token::Fn)
+            .ignore_then(
+                parse_type
+                    .clone()
+                    .separated_by(just(Token::Comma))
+                    .allow_trailing()
+                    .collect::<Vec<Type>>()
+                    .delimited_by(just(Token::LeftParen), just(Token::RightParen)),
+            )
+            .then(just(Token::Arrow).ignore_then(parse_type).or_not())
+            .map(|(arg_types, return_type)| {
+                Type::Function(Rc::new(FunctionType {
+                    arg_types,
+                    return_type: return_type.unwrap_or(Type::Void),
+                }))
+            });
+
+        predefined_ty_name.or(function_type)
+    })
 }
 
 fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>> {

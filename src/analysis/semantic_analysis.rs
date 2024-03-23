@@ -96,4 +96,8 @@ impl<'ast> SemanticAnalyser<'ast> {
     pub fn identifier_to_declaration(&self, handle: Handle) -> Handle {
         *self.scope_reference_map.references.get(&handle).expect("declaration should exist")
     }
+
+    pub fn try_identifier_to_declaration(&self, handle: Handle) -> Option<&Handle> {
+        self.scope_reference_map.references.get(&handle)
+    }
 }
