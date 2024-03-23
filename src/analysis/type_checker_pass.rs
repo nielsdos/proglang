@@ -8,9 +8,10 @@ use crate::syntax::ast::{
 use crate::syntax::ast::{Ast, Declaration};
 use crate::syntax::span::Span;
 use crate::types::function_info::{FunctionInfo, VariableUpdateError};
-use crate::types::type_system::{ImplicitCast, Type};
+use crate::types::type_system::{FunctionType, ImplicitCast, Type};
 use crate::util::handle::Handle;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 pub(crate) struct TypeCheckerPass<'ast, 'f> {
     pub(crate) implicit_cast_table: HashMap<Handle, ImplicitCast>,
@@ -18,6 +19,7 @@ pub(crate) struct TypeCheckerPass<'ast, 'f> {
     pub(crate) function_map: &'f mut HashMap<Handle, FunctionInfo<'ast>>,
     pub(crate) scope_reference_map: &'f ScopeReferenceMap,
     pub(crate) binding_types: HashMap<Handle, BindingType>,
+    pub(crate) indirect_call_function_types: HashMap<Handle, Rc<FunctionType>>,
     pub(crate) semantic_error_list: &'f mut SemanticErrorList,
 }
 
@@ -281,11 +283,19 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             }
         };
 
+        self.indirect_call_function_types.insert(node.callee.0.as_handle(), callee_type.clone());
+
         if node.args.len() != callee_type.arg_types.len() {
             let plural_letter = |x: usize| if x == 1 { "" } else { "s" };
             self.semantic_error_list.report_error(
                 span,
-                format!("expected {} argument{}, but this function call has {} argument{}", callee_type.arg_types.len(), plural_letter(callee_type.arg_types.len()), node.args.len(), plural_letter(node.args.len())),
+                format!(
+                    "expected {} argument{}, but this function call has {} argument{}",
+                    callee_type.arg_types.len(),
+                    plural_letter(callee_type.arg_types.len()),
+                    node.args.len(),
+                    plural_letter(node.args.len())
+                ),
             );
         }
 

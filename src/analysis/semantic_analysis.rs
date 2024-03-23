@@ -7,9 +7,10 @@ use crate::analysis::type_checker_pass::TypeCheckerPass;
 use crate::syntax::ast::Ast;
 use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
-use crate::types::type_system::ImplicitCast;
+use crate::types::type_system::{FunctionType, ImplicitCast};
 use crate::util::handle::Handle;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 pub type FunctionMap<'ast> = HashMap<Handle, FunctionInfo<'ast>>;
 
@@ -18,6 +19,7 @@ pub struct SemanticAnalyser<'ast> {
     scope_reference_map: ScopeReferenceMap,
     implicit_cast_table: HashMap<Handle, ImplicitCast>,
     function_map: FunctionMap<'ast>,
+    indirect_call_function_types: HashMap<Handle, Rc<FunctionType>>,
     errors: Vec<SemanticError>,
 }
 
@@ -28,6 +30,7 @@ impl<'ast> SemanticAnalyser<'ast> {
             scope_reference_map: Default::default(),
             implicit_cast_table: Default::default(),
             function_map: Default::default(),
+            indirect_call_function_types: Default::default(),
             errors: vec![],
         }
     }
@@ -58,17 +61,18 @@ impl<'ast> SemanticAnalyser<'ast> {
             return;
         }
 
-        let implicit_cast_table = {
+        let (implicit_cast_table, indirect_call_function_types) = {
             let mut type_checker = TypeCheckerPass {
                 implicit_cast_table: Default::default(),
                 current_function: None,
                 function_map: &mut self.function_map,
                 scope_reference_map: &scope_reference_map,
                 binding_types: Default::default(),
+                indirect_call_function_types: Default::default(),
                 semantic_error_list: &mut semantic_error_list,
             };
             type_checker.visit(self.ast);
-            type_checker.implicit_cast_table
+            (type_checker.implicit_cast_table, type_checker.indirect_call_function_types)
         };
 
         let mut return_check_pass = ReturnCheckPass {
@@ -78,6 +82,7 @@ impl<'ast> SemanticAnalyser<'ast> {
 
         self.scope_reference_map = scope_reference_map;
         self.implicit_cast_table = implicit_cast_table;
+        self.indirect_call_function_types = indirect_call_function_types;
         self.errors = semantic_error_list.into_vec();
     }
 
@@ -99,5 +104,9 @@ impl<'ast> SemanticAnalyser<'ast> {
 
     pub fn try_identifier_to_declaration(&self, handle: Handle) -> Option<&Handle> {
         self.scope_reference_map.references.get(&handle)
+    }
+
+    pub fn indirect_call_function_type(&self, handle: Handle) -> Option<&Rc<FunctionType>> {
+        self.indirect_call_function_types.get(&handle)
     }
 }

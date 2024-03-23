@@ -44,8 +44,13 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
             Token::Identifier(ident) => Ast::Identifier(Identifier(ident)),
         };
 
-        let call_expression = identifier
+        let atom_no_call = literal
+            .or(identifier)
             .map_with(|ast, extra| (ast, extra.span()))
+            .or(expression.clone().delimited_by(just(Token::LeftParen), just(Token::RightParen)));
+
+        let call_expression = atom_no_call
+            .clone()
             .then(
                 expression
                     .clone()
@@ -57,11 +62,7 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
             )
             .map(|(identifier, args)| Ast::FunctionCall(FunctionCall { callee: Box::new(identifier), args }));
 
-        let atom = literal
-            .or(call_expression)
-            .or(identifier)
-            .map_with(|ast, extra| (ast, extra.span()))
-            .or(expression.clone().delimited_by(just(Token::LeftParen), just(Token::RightParen)));
+        let atom = call_expression.map_with(|ast, extra| (ast, extra.span())).or(atom_no_call);
 
         let map_binary_operation = |lhs: Spanned<Ast<'src>>, (op, rhs): (BinaryOperationKind, Spanned<Ast<'src>>)| {
             let span = lhs.1.start..rhs.1.end;

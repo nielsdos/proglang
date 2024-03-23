@@ -330,8 +330,6 @@ impl<'ctx> CodeGenInner<'ctx> {
         match &ast.0 {
             Ast::Identifier(Identifier(name)) => {
                 let handle = self.semantic_analyser.identifier_to_declaration(ast.0.as_handle());
-                println!("Loading variable: {:?} -> {:?}", ast.0.as_handle(), handle);
-
                 match function_context.variables.get(&handle) {
                     Some(variable) => {
                         let value = function_context.builder.build_load(self.convert_to_basic_type(&variable.ty), variable.ptr, name);
@@ -524,22 +522,22 @@ impl<'ctx> CodeGenInner<'ctx> {
                     .collect::<SmallVec<[_; 4]>>();
 
                 let handle = self.semantic_analyser.try_identifier_to_declaration(callee.0.as_handle());
-                match handle.and_then(|handle| function_context.variables.get(handle)) {
-                    // Indirect call case
-                    Some(callee_var_info) => {
-                        let function_value = self.emit_instructions(callee, function_context, codegen).expect("callee should have a value");
+
+                match handle.and_then(|handle| self.function_declaration_handle_to_function_value.get(&handle)) {
+                    Some(function_value) => {
                         function_context
                             .builder
-                            .build_indirect_call(callee_var_info.ty.into_function_type(), function_value.into_pointer_value(), function_args.as_slice(), "indirect_call")
+                            .build_direct_call(*function_value, function_args.as_slice(), "direct_call")
                             .try_as_basic_value()
                             .left()
                     }
-                    // Direct call case
                     None => {
-                        let function_value = self.function_declaration_handle_to_function_value[&self.semantic_analyser.identifier_to_declaration(callee.0.as_handle())];
+                        let callee_ty = self.semantic_analyser.indirect_call_function_type(callee.0.as_handle()).expect("callee should have a type");
+                        let llvm_callee_ty = self.get_llvm_type_raw(&Type::Function(callee_ty.clone())); // TODO: can be done more efficiently
+                        let function_value = self.emit_instructions(callee, function_context, codegen).expect("callee should have a value");
                         function_context
                             .builder
-                            .build_direct_call(function_value, function_args.as_slice(), "direct_call")
+                            .build_indirect_call(llvm_callee_ty.into_function_type(), function_value.into_pointer_value(), function_args.as_slice(), "indirect_call")
                             .try_as_basic_value()
                             .left()
                     }
