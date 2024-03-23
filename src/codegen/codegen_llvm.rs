@@ -79,7 +79,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
             pm.add_function_attrs_pass();
             pm.add_ipsccp_pass();
             pm.add_sccp_pass();
-            pm.add_global_optimizer_pass(); // TODO: is this actually needed?
+            pm.add_global_optimizer_pass();
             pm.add_basic_alias_analysis_pass();
             pm.add_promote_memory_to_register_pass();
             pm.add_dead_arg_elimination_pass();
