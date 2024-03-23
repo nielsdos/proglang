@@ -256,7 +256,6 @@ impl<'ctx> CodeGenInner<'ctx> {
 
         // Create memory locations for the local variables
         for (variable_handle, variable_type) in function_info.variables() {
-            println!("Creating variable: {:?} -> {:?}", variable_handle, variable_type);
             // Can't have a declaration without an assignment, so a default value is not necessary
             let variable_type = self.get_llvm_type_raw(variable_type);
             let variable_memory = builder.build_alloca(self.convert_to_basic_type(variable_type), "var");

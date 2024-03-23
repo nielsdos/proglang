@@ -188,9 +188,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
     }
 
     fn visit_declaration(&mut self, handle: Handle, node: &'ast Declaration<'ast>, _: Span) -> Type {
-        println!("declaration: {:?}", node);
         let rhs_type = self.visit(&node.assignment.1);
-        println!("rhs_type: {:?}", rhs_type);
         self.current_function_scope_mut()
             .expect("must be in function context")
             .update_variable_type(handle, rhs_type.clone())
