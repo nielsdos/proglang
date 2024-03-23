@@ -266,7 +266,6 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
                     .report_error(span, format!("function must return a value of type '{}', but this returns nothing", function_return_type));
             }
         }
-        // TODO: what happens if we return a value in a void function?
         Type::Void
     }
 
