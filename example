@@ -2,7 +2,6 @@ fn test(int a) -> int:
     return factorial(a)
 
 fn factorial(int x) -> int:
-    # TODO: typecheck function calls
     # TODO: test function calls with multiple args
     # TODO: test calling function returning void
     # TODO: support this: let f = factorial & higher-order functions
