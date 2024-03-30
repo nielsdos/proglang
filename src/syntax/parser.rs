@@ -237,7 +237,7 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
 
     let return_type = just(Token::Arrow).ignore_then(parse_type());
 
-    just(Token::Fn)
+    let function_declaration = just(Token::Fn)
         .map_with(|_, extra| extra.span())
         .then(identifier)
         .then_ignore(just(Token::LeftParen))
@@ -267,7 +267,22 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
                 args,
             };
             (Ast::FunctionDeclaration(declaration), span.into())
-        })
+        });
+
+    let class_field_declarations = parse_type().then(identifier).then_ignore(just(Token::StatementEnd)).repeated().at_least(1).collect::<Vec<_>>();
+
+    let class_declaration = just(Token::Class)
+        .map_with(|_, extra| extra.span())
+        .then(identifier)
+        .then_ignore(just(Token::BlockStart))
+        .then(class_field_declarations)
+        .then_ignore(just(Token::BlockEnd))
+        .map(|((class_span, class_name), fields)| {
+            println!("class {:?} {:?}", class_name, fields);
+            (Ast::Todo, class_span)
+        });
+
+    function_declaration.or(class_declaration)
 }
 
 fn parser<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>> {
