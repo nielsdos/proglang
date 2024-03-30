@@ -63,7 +63,7 @@ impl<'a> Type<'a> {
 
     pub fn dereference(&self) -> &Type<'a> {
         match self {
-            Type::Reference(ty) => &*ty,
+            Type::Reference(ty) => ty,
             ty => ty,
         }
     }
