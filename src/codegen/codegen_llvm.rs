@@ -194,7 +194,6 @@ impl<'ctx> CodeGenInner<'ctx> {
 
     fn codegen_struct(&mut self, class: &'ctx ClassInfo<'ctx>) {
         let structure = self.module.get_context().get_struct_type(class.name()).expect("struct should be declared");
-        // TODO: if it's a class, it should be a pointer?
         let field_types = class.fields_iter().map(|field| self.get_or_insert_llvm_type(field.ty())).collect::<Vec<_>>();
         structure.set_body(field_types.as_slice(), false);
     }

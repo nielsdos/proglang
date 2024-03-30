@@ -2,6 +2,9 @@ class Foo:
     int x
     int y
 
-fn test(&Foo foo) -> int:
-    return foo.y * 2 - foo.x
+class B:
+    &Foo foo
+
+fn test(&B b) -> int:
+    return b.foo.x + b.foo.y
 
