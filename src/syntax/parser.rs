@@ -209,6 +209,10 @@ fn parse_type<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tok
             Token::Identifier("bool") => Type::Bool,
         };
 
+        let user_ty_name = select! {
+            Token::Identifier(ident) => Type::UserType(ident),
+        };
+
         let function_type = just(Token::Fn)
             .ignore_then(
                 parse_type
@@ -226,7 +230,7 @@ fn parse_type<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tok
                 }))
             });
 
-        predefined_ty_name.or(function_type)
+        choice((predefined_ty_name, user_ty_name, function_type))
     })
 }
 
