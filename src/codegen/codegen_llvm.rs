@@ -5,7 +5,7 @@ use crate::syntax::ast::{
 };
 use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
-use crate::types::type_system::{FunctionType, ImplicitCast, Type};
+use crate::types::type_system::{FunctionType, Type};
 use crate::util::handle::Handle;
 use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::builder::Builder;
@@ -301,35 +301,9 @@ impl<'ctx> CodeGenInner<'ctx> {
         }
     }
 
-    fn emit_implicit_cast_if_necessary(&self, handle: Handle, value: BasicValueEnum<'ctx>, function_context: &CodeGenFunctionContext<'ctx>) -> BasicValueEnum<'ctx> {
-        if let Some(implicit_cast_entry) = self.semantic_analyser.implicit_cast_entry(handle) {
-            match implicit_cast_entry {
-                ImplicitCast::IntZext => function_context.builder.build_int_z_extend(value.into_int_value(), self.int_type, "zext").as_basic_value_enum(),
-                ImplicitCast::UnsignedIntToDouble => function_context
-                    .builder
-                    .build_unsigned_int_to_float(value.into_int_value(), self.double_type, "double")
-                    .as_basic_value_enum(),
-                ImplicitCast::SignedIntToDouble => function_context
-                    .builder
-                    .build_signed_int_to_float(value.into_int_value(), self.double_type, "double")
-                    .as_basic_value_enum(),
-                ImplicitCast::IntToBool => function_context
-                    .builder
-                    .build_int_compare(inkwell::IntPredicate::NE, value.into_int_value(), self.int_type.const_int(0, false), "int_to_bool")
-                    .as_basic_value_enum(),
-                ImplicitCast::DoubleToBool => function_context
-                    .builder
-                    .build_float_compare(inkwell::FloatPredicate::UNE, value.into_float_value(), self.double_type.const_float(0.0), "double_to_bool")
-                    .as_basic_value_enum(),
-            }
-        } else {
-            value
-        }
-    }
-
-    fn emit_instructions_with_casts<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) -> BasicValueEnum<'ctx> {
+    fn emit_instructions_expect<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) -> BasicValueEnum<'ctx> {
         let value = self.emit_instructions(ast, function_context, codegen).expect("ast should result in a value");
-        self.emit_implicit_cast_if_necessary(ast.0.as_handle(), value, function_context)
+        value
     }
 
     fn emit_instructions<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) -> Option<BasicValueEnum<'ctx>> {
@@ -349,7 +323,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                 }
             }
             Ast::UnaryOperation(UnaryOperation(operation, operand)) => {
-                let operand_value = self.emit_instructions_with_casts(operand, function_context, codegen);
+                let operand_value = self.emit_instructions_expect(operand, function_context, codegen);
                 match operation {
                     UnaryOperationKind::Minus => {
                         if operand_value.is_int_value() {
@@ -371,8 +345,8 @@ impl<'ctx> CodeGenInner<'ctx> {
                 None
             }
             Ast::BinaryOperation(BinaryOperation(lhs, operation, rhs)) => {
-                let lhs_value = self.emit_instructions_with_casts(lhs, function_context, codegen);
-                let rhs_value = self.emit_instructions_with_casts(rhs, function_context, codegen);
+                let lhs_value = self.emit_instructions_expect(lhs, function_context, codegen);
+                let rhs_value = self.emit_instructions_expect(rhs, function_context, codegen);
                 // TODO: overflow handling, check NaN handling, division by zero checking, power of zero checking
 
                 if operation.is_comparison_op() {
@@ -464,7 +438,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                 then_statements,
                 else_statements,
             }) => {
-                let condition_value = self.emit_instructions_with_casts(condition, function_context, codegen);
+                let condition_value = self.emit_instructions_expect(condition, function_context, codegen);
 
                 let true_block = codegen.context.0.append_basic_block(function_context.function_value, "then");
                 let after_if_block = codegen.context.0.append_basic_block(function_context.function_value, "after_if");

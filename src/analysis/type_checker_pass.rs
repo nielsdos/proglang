@@ -8,13 +8,12 @@ use crate::syntax::ast::{
 use crate::syntax::ast::{Ast, Declaration};
 use crate::syntax::span::Span;
 use crate::types::function_info::{FunctionInfo, VariableUpdateError};
-use crate::types::type_system::{FunctionType, ImplicitCast, Type};
+use crate::types::type_system::{FunctionType, Type};
 use crate::util::handle::Handle;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 pub(crate) struct TypeCheckerPass<'ast, 'f> {
-    pub(crate) implicit_cast_table: HashMap<Handle, ImplicitCast>,
     pub(crate) current_function: Option<Handle>,
     pub(crate) function_map: &'f mut HashMap<Handle, FunctionInfo<'ast>>,
     pub(crate) scope_reference_map: &'f ScopeReferenceMap,
@@ -26,7 +25,6 @@ pub(crate) struct TypeCheckerPass<'ast, 'f> {
 impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
     pub fn new(function_map: &'f mut HashMap<Handle, FunctionInfo<'ast>>, scope_reference_map: &'f ScopeReferenceMap, semantic_error_list: &'f mut SemanticErrorList) -> Self {
         Self {
-            implicit_cast_table: Default::default(),
             current_function: None,
             function_map,
             scope_reference_map,
@@ -89,7 +87,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         self.query_handle_type(referenced_handle).clone()
     }
 
-    fn visit_binary_operation(&mut self, _: Handle, node: &'ast BinaryOperation<'ast>, _: Span) -> Type {
+    fn visit_binary_operation(&mut self, _: Handle, node: &'ast BinaryOperation<'ast>, span: Span) -> Type {
         let lhs_type = self.visit(&node.0);
         let rhs_type = self.visit(&node.2);
 
@@ -97,61 +95,57 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             return Type::Error;
         }
 
-        let target_type = if lhs_type == Type::Double || rhs_type == Type::Double || node.1 == BinaryOperationKind::DoubleDivision || node.1 == BinaryOperationKind::Power {
-            Type::Double
-        } else {
-            Type::Int
-        };
-
-        let compute_target_type = |input_type: &Type| -> ImplicitCast {
-            if target_type == Type::Double {
-                if input_type == &Type::Bool {
-                    ImplicitCast::UnsignedIntToDouble
-                } else {
-                    ImplicitCast::SignedIntToDouble
-                }
-            } else {
-                ImplicitCast::IntZext
-            }
-        };
-
-        if lhs_type != target_type {
-            self.implicit_cast_table.insert(node.0 .0.as_handle(), compute_target_type(&lhs_type));
-        }
-        if rhs_type != target_type {
-            self.implicit_cast_table.insert(node.2 .0.as_handle(), compute_target_type(&rhs_type));
-        }
-
         if node.1.is_comparison_op() {
             Type::Bool
         } else {
-            target_type
+            if !lhs_type.is_numeric() || !rhs_type.is_numeric() {
+                self.semantic_error_list.report_error(
+                    span,
+                    format!(
+                        "expected both operands to be numeric, but the left-hand side has type '{}' and the right-hand side has type '{}'",
+                        lhs_type, rhs_type
+                    ),
+                );
+                return Type::Error;
+            }
+
+            if lhs_type != rhs_type {
+                self.semantic_error_list.report_error(
+                    span,
+                    format!(
+                        "expected both operands to have the same type, but the left-hand side has type '{}' and the right-hand side has type '{}'",
+                        lhs_type, rhs_type
+                    ),
+                );
+                return Type::Error;
+            }
+
+            if lhs_type == Type::Double || rhs_type == Type::Double || node.1 == BinaryOperationKind::DoubleDivision || node.1 == BinaryOperationKind::Power {
+                Type::Double
+            } else {
+                Type::Int
+            }
         }
     }
 
     fn visit_unary_operation(&mut self, _: Handle, node: &'ast UnaryOperation<'ast>, span: Span) -> Type {
         let rhs_type = self.visit(&node.1);
         if !rhs_type.is_numeric() {
-            // Try to implicitly cast it
-            return if rhs_type == Type::Bool {
-                self.implicit_cast_table.insert(node.1 .0.as_handle(), ImplicitCast::IntZext);
-                Type::Int
-            } else {
-                // Don't report propagated errors
-                if !rhs_type.is_error() {
-                    self.semantic_error_list.report_error(
-                        span,
-                        format!(
-                            "unary operator '{}' expects a numeric type, found a value of type '{}' instead",
-                            node.0.to_human_readable_str(),
-                            rhs_type
-                        ),
-                    );
-                }
-                Type::Error
-            };
+            // Don't report propagated errors
+            if !rhs_type.is_error() {
+                self.semantic_error_list.report_error(
+                    span,
+                    format!(
+                        "unary operator '{}' expects a numeric type, found a value of type '{}' instead",
+                        node.0.to_human_readable_str(),
+                        rhs_type
+                    ),
+                );
+            }
+            Type::Error
+        } else {
+            rhs_type
         }
-        rhs_type
     }
 
     fn visit_assignment(&mut self, handle: Handle, node: &'ast Assignment<'ast>, span: Span) -> Type {
@@ -241,14 +235,9 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         if condition_type.is_error() {
             return Type::Error;
         }
-        match condition_type {
-            Type::Int => {
-                self.implicit_cast_table.insert(node.condition.0.as_handle(), ImplicitCast::IntToBool);
-            }
-            Type::Double => {
-                self.implicit_cast_table.insert(node.condition.0.as_handle(), ImplicitCast::DoubleToBool);
-            }
-            _ => {}
+        if condition_type != Type::Bool {
+            self.semantic_error_list
+                .report_error(node.condition.1, format!("expected a condition of type 'bool', but this condition has type '{}'", condition_type));
         }
         self.visit(&node.then_statements);
         if let Some(else_statements) = &node.else_statements {

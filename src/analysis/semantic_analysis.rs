@@ -8,7 +8,7 @@ use crate::builtin::Builtins;
 use crate::syntax::ast::Ast;
 use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
-use crate::types::type_system::{FunctionType, ImplicitCast};
+use crate::types::type_system::FunctionType;
 use crate::util::handle::Handle;
 use std::collections::{hash_map::Values, HashMap};
 use std::rc::Rc;
@@ -20,7 +20,6 @@ pub struct SemanticAnalyser<'ast> {
     ast: &'ast Spanned<Ast<'ast>>,
     builtins: &'ast Builtins<'ast>,
     scope_reference_map: ScopeReferenceMap,
-    implicit_cast_table: HashMap<Handle, ImplicitCast>,
     function_map: FunctionMap<'ast>,
     indirect_call_function_types: HashMap<Handle, Rc<FunctionType>>,
     errors: Vec<SemanticError>,
@@ -32,7 +31,6 @@ impl<'ast> SemanticAnalyser<'ast> {
             ast,
             builtins,
             scope_reference_map: Default::default(),
-            implicit_cast_table: Default::default(),
             function_map: Default::default(),
             indirect_call_function_types: Default::default(),
             errors: vec![],
@@ -61,17 +59,16 @@ impl<'ast> SemanticAnalyser<'ast> {
             return;
         }
 
-        let (implicit_cast_table, indirect_call_function_types) = {
+        let indirect_call_function_types = {
             let mut type_checker = TypeCheckerPass::new(&mut self.function_map, &scope_reference_map, &mut semantic_error_list);
             type_checker.visit(self.ast);
-            (type_checker.implicit_cast_table, type_checker.indirect_call_function_types)
+            type_checker.indirect_call_function_types
         };
 
         let mut return_check_pass = ReturnCheckPass::new(&mut semantic_error_list);
         return_check_pass.visit(self.ast);
 
         self.scope_reference_map = scope_reference_map;
-        self.implicit_cast_table = implicit_cast_table;
         self.indirect_call_function_types = indirect_call_function_types;
         self.errors = semantic_error_list.into_vec();
     }
@@ -88,10 +85,6 @@ impl<'ast> SemanticAnalyser<'ast> {
         let mut collection = self.function_map.values().collect::<Vec<_>>();
         collection.sort_by(|a, b| a.name().cmp(b.name()));
         collection.into_iter()
-    }
-
-    pub fn implicit_cast_entry(&self, handle: Handle) -> Option<&ImplicitCast> {
-        self.implicit_cast_table.get(&handle)
     }
 
     pub fn identifier_to_declaration(&self, handle: Handle) -> Handle {
