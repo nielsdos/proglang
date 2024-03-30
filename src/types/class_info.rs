@@ -38,8 +38,11 @@ impl<'ast> ClassInfo<'ast> {
     }
 
     pub fn fields_iter(&self) -> impl Iterator<Item = &ClassFieldInfo<'ast>> {
-        // TODO: keep sorting, this is in a non-deterministic order!!!
-        self.fields.values()
+        let mut tmp = self.fields.values().collect::<Vec<_>>();
+        tmp.sort_by(|a, b| {
+            a.index.cmp(&b.index)
+        });
+        tmp.into_iter()
     }
 
     pub fn name(&self) -> &'ast str {
