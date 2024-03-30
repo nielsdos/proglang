@@ -1,6 +1,6 @@
 use crate::syntax::ast::{
-    Assignment, Ast, BinaryOperation, Class, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList,
-    UnaryOperation,
+    Assignment, Ast, BinaryOperation, Class, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement,
+    StatementList, UnaryOperation,
 };
 use crate::syntax::span::{Span, Spanned};
 use crate::util::handle::Handle;
@@ -23,6 +23,7 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
             Ast::ReturnStatement(inner) => self.visit_return_statement(handle, inner, node.1),
             Ast::FunctionCall(inner) => self.visit_function_call(handle, inner, node.1),
             Ast::Class(inner) => self.visit_class(handle, inner, node.1),
+            Ast::MemberAccess(inner) => self.visit_member_access(handle, inner, node.1),
             _ => todo!(),
         }
     }
@@ -101,6 +102,11 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
     }
 
     fn visit_class(&mut self, _: Handle, _: &'ast Class<'ast>, _: Span) -> T {
+        T::default()
+    }
+
+    fn visit_member_access(&mut self, _: Handle, node: &'ast MemberAccess<'ast>, _: Span) -> T {
+        self.visit(&node.lhs);
         T::default()
     }
 }

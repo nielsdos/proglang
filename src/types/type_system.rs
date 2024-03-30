@@ -15,6 +15,7 @@ pub enum Type<'a> {
     Void,
     Function(Rc<FunctionType<'a>>),
     UserType(&'a str),
+    Reference(Rc<Type<'a>>),
     #[default]
     Error,
 }
@@ -38,16 +39,24 @@ impl<'a> Display for Type<'a> {
                 write!(f, ") -> {}", func.return_type)
             }
             Type::UserType(name) => write!(f, "{}", name),
+            Type::Reference(ty) => write!(f, "&{}", ty),
         }
     }
 }
 
-impl Type<'_> {
+impl<'a> Type<'a> {
     pub fn is_numeric(&self) -> bool {
         matches!(self, Type::Int | Type::Double)
     }
 
     pub fn is_error(&self) -> bool {
         matches!(self, Type::Error)
+    }
+
+    pub fn dereference(&self) -> &Type<'a> {
+        match self {
+            Type::Reference(ty) => &*ty,
+            ty => ty,
+        }
     }
 }

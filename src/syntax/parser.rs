@@ -2,7 +2,7 @@
 
 use crate::syntax::ast::{
     Assignment, Ast, BinaryOperation, BinaryOperationKind, BindingType, Class, ClassField, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat,
-    LiteralInt, ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind,
+    LiteralInt, MemberAccess, ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind,
 };
 use crate::syntax::lexer::lexer;
 use crate::syntax::span::{Span, Spanned};
@@ -40,9 +40,11 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
             Token::LiteralBool(dbl) => Ast::LiteralBool(LiteralBool(dbl)),
         };
 
-        let identifier = select! {
-            Token::Identifier(ident) => Ast::Identifier(Identifier(ident)),
+        let identifier_raw = select! {
+            Token::Identifier(ident) => Identifier(ident),
         };
+
+        let identifier = identifier_raw.map(Ast::Identifier);
 
         let atom_no_call = literal
             .or(identifier)
@@ -64,6 +66,17 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
 
         let atom = call_expression.map_with(|ast, extra| (ast, extra.span())).or(atom_no_call);
 
+        let member_access = atom.clone().foldl(
+            just(Token::Dot).ignore_then(identifier_raw.map_with(|ident, extra| (ident, extra.span()))).repeated(),
+            |lhs: Spanned<Ast<'src>>, rhs: Spanned<Identifier<'src>>| {
+                let span = lhs.1.start..rhs.1.end;
+                (Ast::MemberAccess(MemberAccess { lhs: Box::new(lhs), rhs }), span.into())
+            },
+        );
+
+        // TODO: call should probably be moved to this?
+        let primary = member_access.or(atom);
+
         let map_binary_operation = |lhs: Spanned<Ast<'src>>, (op, rhs): (BinaryOperationKind, Spanned<Ast<'src>>)| {
             let span = lhs.1.start..rhs.1.end;
             (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), op, Box::new(rhs))), span.into())
@@ -84,7 +97,7 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
                         (Ast::UnaryOperation(UnaryOperation(kind.0, Box::new(rhs))), span)
                     });
 
-                let power = atom
+                let power = primary
                     .clone()
                     .foldl(just(Token::DoubleStar).to(BinaryOperationKind::Power).then(unary_expression).repeated(), map_binary_operation);
 
@@ -213,6 +226,12 @@ fn parse_type<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tok
             Token::Identifier(ident) => Type::UserType(ident),
         };
 
+        // TODO: allow &float etc too?
+        let user_ty = just(Token::Ampersand)
+            .or_not()
+            .then(user_ty_name)
+            .map(|(is_reference, ty)| if is_reference.is_some() { Type::Reference(Rc::new(ty)) } else { ty });
+
         let function_type = just(Token::Fn)
             .ignore_then(
                 parse_type
@@ -230,7 +249,7 @@ fn parse_type<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tok
                 }))
             });
 
-        choice((predefined_ty_name, user_ty_name, function_type))
+        choice((predefined_ty_name, user_ty, function_type))
     })
 }
 

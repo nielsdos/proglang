@@ -98,6 +98,11 @@ pub struct FunctionCall<'ctx> {
     pub args: Vec<Spanned<Ast<'ctx>>>,
 }
 #[derive(Debug)]
+pub struct MemberAccess<'src> {
+    pub lhs: Box<Spanned<Ast<'src>>>,
+    pub rhs: Spanned<Identifier<'src>>,
+}
+#[derive(Debug)]
 pub struct ClassField<'src> {
     pub name: &'src str,
     pub ty: Type<'src>,
@@ -123,6 +128,7 @@ pub enum Ast<'src> {
     IfStatement(IfStatement<'src>),
     ReturnStatement(ReturnStatement<'src>),
     FunctionCall(FunctionCall<'src>),
+    MemberAccess(MemberAccess<'src>),
     Class(Class<'src>),
     /// Special AST nodes used for internal functions
     BuiltinSiToFp(Handle),

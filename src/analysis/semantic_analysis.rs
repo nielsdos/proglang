@@ -6,17 +6,18 @@ use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::{SemanticError, SemanticErrorList};
 use crate::analysis::type_checker_pass::TypeCheckerPass;
 use crate::builtin::Builtins;
-use crate::syntax::ast::{Ast, Class};
+use crate::syntax::ast::Ast;
 use crate::syntax::span::Spanned;
+use crate::types::class_info::ClassInfo;
 use crate::types::function_info::FunctionInfo;
-use crate::types::type_system::FunctionType;
+use crate::types::type_system::{FunctionType, Type};
 use crate::util::handle::Handle;
 use std::collections::{hash_map::Values, HashMap};
 use std::rc::Rc;
 use std::vec::IntoIter;
 
 pub type FunctionMap<'ast> = HashMap<Handle, FunctionInfo<'ast>>;
-pub type ClassMap<'ast> = HashMap<Handle, &'ast Class<'ast>>;
+pub type ClassMap<'ast> = HashMap<&'ast str, ClassInfo<'ast>>;
 
 pub struct SemanticAnalyser<'ast> {
     ast: &'ast Spanned<Ast<'ast>>,
@@ -25,7 +26,14 @@ pub struct SemanticAnalyser<'ast> {
     function_map: FunctionMap<'ast>,
     class_map: ClassMap<'ast>,
     indirect_call_function_types: HashMap<Handle, Rc<FunctionType<'ast>>>,
+    member_access_meta_data: HashMap<Handle, MemberAccessMetadata<'ast>>,
     errors: Vec<SemanticError>,
+}
+
+pub struct MemberAccessMetadata<'ast> {
+    pub object_type: Type<'ast>,
+    pub member_type: Type<'ast>,
+    pub index: u64,
 }
 
 impl<'ast> SemanticAnalyser<'ast> {
@@ -37,6 +45,7 @@ impl<'ast> SemanticAnalyser<'ast> {
             function_map: Default::default(),
             class_map: Default::default(),
             indirect_call_function_types: Default::default(),
+            member_access_meta_data: Default::default(),
             errors: vec![],
         }
     }
@@ -69,10 +78,10 @@ impl<'ast> SemanticAnalyser<'ast> {
             return;
         }
 
-        let indirect_call_function_types = {
-            let mut type_checker = TypeCheckerPass::new(&mut self.function_map, &scope_reference_map, &mut semantic_error_list);
+        let (indirect_call_function_types, member_access_meta_data) = {
+            let mut type_checker = TypeCheckerPass::new(&mut self.function_map, &scope_reference_map, &class_map, &mut semantic_error_list);
             type_checker.visit(self.ast);
-            type_checker.indirect_call_function_types
+            (type_checker.indirect_call_function_types, type_checker.member_access_meta_data)
         };
 
         let mut return_check_pass = ReturnCheckPass::new(&mut semantic_error_list);
@@ -80,6 +89,7 @@ impl<'ast> SemanticAnalyser<'ast> {
 
         self.class_map = class_map;
         self.scope_reference_map = scope_reference_map;
+        self.member_access_meta_data = member_access_meta_data;
         self.indirect_call_function_types = indirect_call_function_types;
         self.errors = semantic_error_list.into_vec();
     }
@@ -88,7 +98,8 @@ impl<'ast> SemanticAnalyser<'ast> {
         &self.errors
     }
 
-    pub fn class_map_iter(&self) -> Values<'_, Handle, &Class<'ast>> {
+    pub fn class_map_iter(&self) -> Values<'_, &'ast str, ClassInfo<'ast>> {
+        // TODO: how long do we need this class_map afterwards?
         self.class_map.values()
     }
 
@@ -112,5 +123,9 @@ impl<'ast> SemanticAnalyser<'ast> {
 
     pub fn indirect_call_function_type(&self, handle: Handle) -> Option<&Rc<FunctionType>> {
         self.indirect_call_function_types.get(&handle)
+    }
+
+    pub fn member_access_meta_data(&self, handle: Handle) -> &MemberAccessMetadata<'ast> {
+        &self.member_access_meta_data[&handle]
     }
 }

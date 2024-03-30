@@ -1,9 +1,10 @@
 use crate::analysis::semantic_analysis::SemanticAnalyser;
 use crate::syntax::ast::{
-    Assignment, Ast, BinaryOperation, BinaryOperationKind, Class, Declaration, FunctionCall, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList,
+    Assignment, Ast, BinaryOperation, BinaryOperationKind, Declaration, FunctionCall, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList,
     UnaryOperation, UnaryOperationKind,
 };
 use crate::syntax::span::Spanned;
+use crate::types::class_info::ClassInfo;
 use crate::types::function_info::FunctionInfo;
 use crate::types::type_system::{FunctionType, Type};
 use crate::util::handle::Handle;
@@ -127,7 +128,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
     pub fn codegen_types(&mut self) {
         // TODO: hardcoded to first module right now
         for class in self.semantic_analyser.class_map_iter() {
-            self.modules[0].declare_struct(class.name);
+            self.modules[0].declare_struct(class.name());
             println!("class: {:?}", class);
         }
 
@@ -191,10 +192,10 @@ impl<'ctx> CodeGenInner<'ctx> {
         self.type_to_llvm_type.insert(Type::UserType(name), AnyTypeEnum::StructType(structure));
     }
 
-    fn codegen_struct(&mut self, class: &'ctx Class<'ctx>) {
-        let structure = self.module.get_context().get_struct_type(class.name).expect("struct should be declared");
+    fn codegen_struct(&mut self, class: &'ctx ClassInfo<'ctx>) {
+        let structure = self.module.get_context().get_struct_type(class.name()).expect("struct should be declared");
         // TODO: if it's a class, it should be a pointer?
-        let field_types = class.fields.iter().map(|field| self.get_or_insert_llvm_type(&field.0.ty)).collect::<Vec<_>>();
+        let field_types = class.fields_iter().map(|field| self.get_or_insert_llvm_type(field.ty())).collect::<Vec<_>>();
         structure.set_body(field_types.as_slice(), false);
     }
 
@@ -227,6 +228,7 @@ impl<'ctx> CodeGenInner<'ctx> {
         } else {
             let llvm_ty = match ty {
                 Type::Function(ty) => self.construct_llvm_function_type(ty).into(),
+                Type::Reference(ty) => AnyTypeEnum::PointerType(self.get_or_insert_llvm_type(ty).ptr_type(AddressSpace::default())),
                 _ => unimplemented!(),
             };
             self.type_to_llvm_type.insert(ty.clone(), llvm_ty);
@@ -543,6 +545,25 @@ impl<'ctx> CodeGenInner<'ctx> {
                             .left()
                     }
                 }
+            }
+            Ast::MemberAccess(MemberAccess { lhs, rhs: _ }) => {
+                let object = self.emit_instructions_expect(lhs, function_context, codegen);
+
+                let meta_data = self.semantic_analyser.member_access_meta_data(ast.0.as_handle());
+                let pointee_type = self.get_llvm_type(&meta_data.object_type);
+                let member_type = self.get_llvm_type(&meta_data.member_type);
+
+                // SAFETY: The index was constructed in a way it is always inside the bounds of the field map,
+                // and we have emitted all field types in codegen_types().
+                let gep = unsafe {
+                    function_context.builder.build_in_bounds_gep(
+                        pointee_type,
+                        object.into_pointer_value(),
+                        &[self.int_type.const_zero(), codegen.context.0.i32_type().const_int(meta_data.index, false)],
+                        "gep",
+                    )
+                };
+                Some(function_context.builder.build_load(member_type, gep, "gep_load").as_basic_value_enum())
             }
             Ast::BuiltinSiToFp(handle) => {
                 let variable = &function_context.variables[handle];

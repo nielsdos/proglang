@@ -52,6 +52,8 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
 
     let single_operator = one_of("+-*/%=<>").map(Token::Operator);
 
+    let ampersand = just('&').to(Token::Ampersand);
+    let dot = just('.').to(Token::Dot);
     let comma = just(',').to(Token::Comma);
 
     let parens = choice((just('(').to(Token::LeftParen), just(')').to(Token::RightParen)));
@@ -78,7 +80,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
 
     let comment = just('#').padded_by(text::inline_whitespace()).then(any().and_is(text::newline().not()).repeated());
 
-    let token = choice((dbl, int, comma, parens, multi_operator, compound_assignment, single_operator, keyword_or_identifier));
+    let token = choice((dbl, int, ampersand, dot, comma, parens, multi_operator, compound_assignment, single_operator, keyword_or_identifier));
 
     let block = recursive(|block| {
         let indentation = text::inline_whitespace().configure(|cfg, &parent_indentation| cfg.exactly(parent_indentation));
