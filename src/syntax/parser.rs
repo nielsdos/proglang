@@ -138,8 +138,7 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
         };
 
         let if_check = just(Token::If)
-            .ignored()
-            .then(parse_expression())
+            .ignore_then(parse_expression())
             .then_ignore(just(Token::BlockStart))
             .then(statement_list.clone())
             .then_ignore(just(Token::BlockEnd))
@@ -150,7 +149,7 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
                     .then_ignore(just(Token::BlockEnd))
                     .or_not(),
             )
-            .map_with(|(((_, condition), then_statements), else_statements), extra| (condition, then_statements, else_statements, extra.span()))
+            .map_with(|((condition, then_statements), else_statements), extra| (condition, then_statements, else_statements, extra.span()))
             .map(|(condition, then_statements, else_statements, span)| {
                 (
                     Ast::IfStatement(IfStatement {
