@@ -3,7 +3,7 @@
 fn foo():
   return
 
-# CHECK: define void @foo() local_unnamed_addr #0 {
+# CHECK: define void @foo() local_unnamed_addr #1 {
 # CHECK-NEXT: entry:
 # CHECK-NEXT:   ret
 # CHECK-NEXT: }

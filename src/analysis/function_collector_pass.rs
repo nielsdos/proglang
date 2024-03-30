@@ -1,6 +1,7 @@
 use crate::analysis::semantic_analysis::FunctionMap;
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
+use crate::builtin::Builtins;
 use crate::syntax::ast::FunctionDeclaration;
 use crate::syntax::span::Span;
 use crate::types::function_info::FunctionInfo;
@@ -24,6 +25,19 @@ impl<'f, 'ast> FunctionCollectorPass<'f, 'ast> {
 
     pub fn into_function_map(self) -> FunctionMap<'ast> {
         self.function_map
+    }
+
+    pub fn register_internal_functions(&mut self, builtins: &'ast Builtins<'ast>) {
+        let float = builtins.get_builtin_float();
+        let declaration_handle = float.name() as *const _ as *const ();
+
+        self.seen_function_names.insert(float.name(), (0..0).into());
+        let mut function_info = FunctionInfo::new(float.name(), float.body(), float.args(), float.return_type().clone(), declaration_handle);
+        function_info.set_always_inline(true);
+        for arg in float.args() {
+            let _ = function_info.update_variable_type(arg.0.as_handle(), arg.0.ty().clone());
+        }
+        self.function_map.insert(declaration_handle, function_info);
     }
 }
 

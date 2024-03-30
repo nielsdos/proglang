@@ -21,7 +21,7 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
             Ast::IfStatement(inner) => self.visit_if_statement(handle, inner, node.1),
             Ast::ReturnStatement(inner) => self.visit_return_statement(handle, inner, node.1),
             Ast::FunctionCall(inner) => self.visit_function_call(handle, inner, node.1),
-            Ast::Todo => todo!(),
+            _ => todo!(),
         }
     }
 

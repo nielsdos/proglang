@@ -21,6 +21,8 @@ pub struct FunctionInfo<'ast> {
     name: &'ast str,
     declaration_handle: Handle,
     function_type: Rc<FunctionType>,
+    // TODO: flags field instead?
+    always_inline: bool,
 }
 
 #[derive(Debug)]
@@ -69,7 +71,16 @@ impl<'ast> FunctionInfo<'ast> {
             name,
             declaration_handle,
             function_type: Rc::new(function_type),
+            always_inline: false,
         }
+    }
+
+    pub fn set_always_inline(&mut self, always_inline: bool) {
+        self.always_inline = always_inline;
+    }
+
+    pub fn is_always_inline(&self) -> bool {
+        self.always_inline
     }
 
     pub fn query_variable_type(&self, handle: Handle) -> Option<&Type> {

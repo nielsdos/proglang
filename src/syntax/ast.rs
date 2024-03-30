@@ -113,6 +113,8 @@ pub enum Ast<'src> {
     IfStatement(IfStatement<'src>),
     ReturnStatement(ReturnStatement<'src>),
     FunctionCall(FunctionCall<'src>),
+    /// Special AST nodes used for internal functions
+    BuiltinSiToFp(Handle),
     /// Placeholder, useful for development purposes.
     Todo,
 }

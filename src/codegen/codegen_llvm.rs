@@ -7,6 +7,7 @@ use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
 use crate::types::type_system::{FunctionType, ImplicitCast, Type};
 use crate::util::handle::Handle;
+use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::intrinsics::Intrinsic;
@@ -247,8 +248,14 @@ impl<'ctx> CodeGenInner<'ctx> {
 
     pub fn codegen_function(&self, function_info: &FunctionInfo, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
         let context = &codegen.context.0;
-
         let function_value = self.function_declaration_handle_to_function_value[&function_info.declaration_handle()];
+
+        if function_info.is_always_inline() {
+            let always_inline = Attribute::get_named_enum_kind_id("alwaysinline");
+            let attr = context.create_enum_attribute(always_inline, 0);
+            function_value.add_attribute(AttributeLoc::Function, attr);
+        }
+
         let basic_block = context.append_basic_block(function_value, "entry");
         builder.position_at_end(basic_block);
 
@@ -539,6 +546,16 @@ impl<'ctx> CodeGenInner<'ctx> {
                             .left()
                     }
                 }
+            }
+            Ast::BuiltinSiToFp(handle) => {
+                let variable = &function_context.variables[handle];
+                let load = function_context.builder.build_load(self.convert_to_basic_type(&variable.ty), variable.ptr, "load");
+                Some(
+                    function_context
+                        .builder
+                        .build_signed_int_to_float(load.into_int_value(), self.double_type, "conv")
+                        .as_basic_value_enum(),
+                )
             }
             _ => {
                 println!("Unhandled AST: {:?}", ast.0);
