@@ -9,8 +9,9 @@ use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
 use crate::types::type_system::{FunctionType, ImplicitCast};
 use crate::util::handle::Handle;
-use std::collections::HashMap;
+use std::collections::{hash_map::Values, HashMap};
 use std::rc::Rc;
+use std::vec::IntoIter;
 
 pub type FunctionMap<'ast> = HashMap<Handle, FunctionInfo<'ast>>;
 
@@ -75,8 +76,14 @@ impl<'ast> SemanticAnalyser<'ast> {
         &self.errors
     }
 
-    pub fn function_list_iter(&self) -> impl Iterator<Item = (&Handle, &'_ FunctionInfo<'_>)> {
-        self.function_map.iter()
+    pub fn function_list_iter(&self) -> Values<'_, Handle, FunctionInfo<'_>> {
+        self.function_map.values()
+    }
+
+    pub fn function_list_sorted_iter(&self) -> IntoIter<&'_ FunctionInfo<'ast>> {
+        let mut collection = self.function_map.values().collect::<Vec<_>>();
+        collection.sort_by(|a, b| a.name().cmp(b.name()));
+        collection.into_iter()
     }
 
     pub fn implicit_cast_entry(&self, handle: Handle) -> Option<&ImplicitCast> {

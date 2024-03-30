@@ -21,11 +21,11 @@ impl<'c> CodeGen<'c> {
     }
 
     fn codegen_functions(&mut self) {
-        for (_, function_info) in self.semantic_analyser.function_list_iter() {
+        for function_info in self.semantic_analyser.function_list_sorted_iter() {
             self.declare_function(function_info);
         }
 
-        for (_, function_info) in self.semantic_analyser.function_list_iter() {
+        for function_info in self.semantic_analyser.function_list_iter() {
             self.codegen_function(function_info);
         }
 
