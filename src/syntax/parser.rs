@@ -1,9 +1,6 @@
 // Based on the sample code from https://github.com/zesterer/chumsky/blob/main/examples/nano_rust.rs
 
-use crate::syntax::ast::{
-    Assignment, Ast, BinaryOperation, BinaryOperationKind, BindingType, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt,
-    ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind,
-};
+use crate::syntax::ast::{Assignment, Ast, BinaryOperation, BinaryOperationKind, BindingType, Class, ClassField, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind};
 use crate::syntax::lexer::lexer;
 use crate::syntax::span::{Span, Spanned};
 use crate::syntax::token::{Token, TokenTree};
@@ -269,17 +266,25 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
             (Ast::FunctionDeclaration(declaration), span.into())
         });
 
-    let class_field_declarations = parse_type().then(identifier).then_ignore(just(Token::StatementEnd)).repeated().at_least(1).collect::<Vec<_>>();
+    let class_field_declarations = parse_type()
+        .then(identifier)
+        .then_ignore(just(Token::StatementEnd))
+        .map_with(|(ty, name), extra| {
+            let class_field = ClassField { name, ty };
+            (class_field, extra.span())
+        })
+        .repeated()
+        .at_least(1)
+        .collect::<Vec<_>>();
 
     let class_declaration = just(Token::Class)
-        .map_with(|_, extra| extra.span())
-        .then(identifier)
+        .ignore_then(identifier)
         .then_ignore(just(Token::BlockStart))
         .then(class_field_declarations)
+        .map_with(|data, extra| (data, extra.span()))
         .then_ignore(just(Token::BlockEnd))
-        .map(|((class_span, class_name), fields)| {
-            println!("class {:?} {:?}", class_name, fields);
-            (Ast::Todo, class_span)
+        .map(|((name, fields), span)| {
+            (Ast::Class(Class { name, fields }), span)
         });
 
     function_declaration.or(class_declaration)

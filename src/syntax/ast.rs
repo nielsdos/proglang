@@ -97,6 +97,16 @@ pub struct FunctionCall<'ctx> {
     pub callee: Box<Spanned<Ast<'ctx>>>,
     pub args: Vec<Spanned<Ast<'ctx>>>,
 }
+#[derive(Debug)]
+pub struct ClassField<'src> {
+    pub name: &'src str,
+    pub ty: Type,
+}
+#[derive(Debug)]
+pub struct Class<'src> {
+    pub name: &'src str,
+    pub fields: Vec<Spanned<ClassField<'src>>>,
+}
 
 #[derive(Debug)]
 pub enum Ast<'src> {
@@ -113,6 +123,7 @@ pub enum Ast<'src> {
     IfStatement(IfStatement<'src>),
     ReturnStatement(ReturnStatement<'src>),
     FunctionCall(FunctionCall<'src>),
+    Class(Class<'src>),
     /// Special AST nodes used for internal functions
     BuiltinSiToFp(Handle),
     /// Placeholder, useful for development purposes.
