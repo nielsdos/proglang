@@ -257,7 +257,6 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
     }
 
     fn visit_return_statement(&mut self, _: Handle, node: &'ast ReturnStatement<'ast>, span: Span) -> Type<'ast> {
-        // TODO: implicit casts?
         if let Some(value) = &node.value {
             let returned_type = self.visit(value);
             if returned_type.is_error() {
