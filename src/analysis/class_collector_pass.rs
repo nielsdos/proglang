@@ -10,7 +10,6 @@ use std::collections::HashMap;
 pub(crate) struct ClassCollectorPass<'f, 'ast> {
     class_map: ClassMap<'ast>,
     semantic_error_list: &'f mut SemanticErrorList,
-    // TODO: merge with class_map itself
     seen_class_names: HashMap<&'ast str, Span>,
 }
 
