@@ -302,8 +302,7 @@ impl<'ctx> CodeGenInner<'ctx> {
     }
 
     fn emit_instructions_expect<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) -> BasicValueEnum<'ctx> {
-        let value = self.emit_instructions(ast, function_context, codegen).expect("ast should result in a value");
-        value
+        self.emit_instructions(ast, function_context, codegen).expect("ast should result in a value")
     }
 
     fn emit_instructions<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) -> Option<BasicValueEnum<'ctx>> {
