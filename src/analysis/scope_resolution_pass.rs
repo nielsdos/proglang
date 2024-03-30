@@ -14,11 +14,11 @@ pub struct ScopeReferenceMap {
 pub(crate) struct ScopeResolutionPass<'ast, 'f> {
     /// Every item of the vec maps an identifier to the handle declaring the identifier.
     /// The topmost item is the currently active scope.
-    pub(crate) environment_stack: Vec<HashMap<&'ast str, Handle>>,
+    environment_stack: Vec<HashMap<&'ast str, Handle>>,
     /// Maps an identifier handle to its declaration handle.
-    pub(crate) reference_map: ScopeReferenceMap,
+    reference_map: ScopeReferenceMap,
 
-    pub(crate) semantic_error_list: &'f mut SemanticErrorList,
+    semantic_error_list: &'f mut SemanticErrorList,
 }
 
 impl<'ast, 'f> ScopeResolutionPass<'ast, 'f> {
@@ -36,6 +36,10 @@ impl<'ast, 'f> ScopeResolutionPass<'ast, 'f> {
         for function_declaration in function_map.values() {
             self.bind(function_declaration.name(), function_declaration.declaration_handle());
         }
+    }
+
+    pub fn into_reference_map(self) -> ScopeReferenceMap {
+        self.reference_map
     }
 
     fn push_scope(&mut self) {

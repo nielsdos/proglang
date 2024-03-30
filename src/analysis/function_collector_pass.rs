@@ -8,9 +8,9 @@ use crate::util::handle::Handle;
 use std::collections::HashMap;
 
 pub(crate) struct FunctionCollectorPass<'f, 'ast> {
-    pub(crate) function_map: FunctionMap<'ast>,
-    pub(crate) semantic_error_list: &'f mut SemanticErrorList,
-    pub(crate) seen_function_names: HashMap<&'ast str, Span>,
+    function_map: FunctionMap<'ast>,
+    semantic_error_list: &'f mut SemanticErrorList,
+    seen_function_names: HashMap<&'ast str, Span>,
 }
 
 impl<'f, 'ast> FunctionCollectorPass<'f, 'ast> {
@@ -20,6 +20,10 @@ impl<'f, 'ast> FunctionCollectorPass<'f, 'ast> {
             semantic_error_list,
             seen_function_names: Default::default(),
         }
+    }
+
+    pub fn into_function_map(self) -> FunctionMap<'ast> {
+        self.function_map
     }
 }
 

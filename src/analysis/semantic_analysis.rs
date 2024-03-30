@@ -42,14 +42,14 @@ impl<'ast> SemanticAnalyser<'ast> {
         self.function_map = {
             let mut function_collector = FunctionCollectorPass::new(&mut semantic_error_list);
             function_collector.visit(self.ast);
-            function_collector.function_map
+            function_collector.into_function_map()
         };
 
         let scope_reference_map = {
             let mut scope_resolution = ScopeResolutionPass::new(&mut semantic_error_list);
             scope_resolution.register_functions(&self.function_map);
             scope_resolution.visit(self.ast);
-            scope_resolution.reference_map
+            scope_resolution.into_reference_map()
         };
 
         if semantic_error_list.has_errors() {
