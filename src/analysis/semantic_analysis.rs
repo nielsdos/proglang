@@ -47,7 +47,6 @@ impl<'ast> SemanticAnalyser<'ast> {
             class_collector.visit(self.ast);
             class_collector.into_class_map()
         };
-        println!("{:?}", class_map);
 
         self.function_map = {
             let mut function_collector = FunctionCollectorPass::new(&mut semantic_error_list);

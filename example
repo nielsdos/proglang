@@ -2,5 +2,6 @@ class Foo:
     int x
     int y
 
-fn bar() -> float:
-    return 1.5 + 1.0
+class Foo:
+    int z
+
