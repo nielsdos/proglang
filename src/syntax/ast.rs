@@ -79,7 +79,7 @@ pub struct StatementList<'src>(pub Vec<Spanned<Ast<'src>>>);
 pub struct FunctionDeclaration<'src> {
     pub name: &'src str,
     pub statements: Box<Spanned<Ast<'src>>>,
-    pub return_type: Type,
+    pub return_type: Type<'src>,
     pub args: Vec<Spanned<ArgumentInfo<'src>>>,
 }
 #[derive(Debug)]
@@ -100,7 +100,7 @@ pub struct FunctionCall<'ctx> {
 #[derive(Debug)]
 pub struct ClassField<'src> {
     pub name: &'src str,
-    pub ty: Type,
+    pub ty: Type<'src>,
 }
 #[derive(Debug)]
 pub struct Class<'src> {

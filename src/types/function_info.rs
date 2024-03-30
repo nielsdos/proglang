@@ -9,29 +9,29 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub struct ArgumentInfo<'ast> {
     name: &'ast str,
-    ty: Type,
+    ty: Type<'ast>,
     binding: BindingType,
 }
 
 #[derive(Debug)]
 pub struct FunctionInfo<'ast> {
     body: &'ast Spanned<Ast<'ast>>,
-    variable_types: HashMap<Handle, Type>,
+    variable_types: HashMap<Handle, Type<'ast>>,
     args: &'ast [Spanned<ArgumentInfo<'ast>>],
     name: &'ast str,
     declaration_handle: Handle,
-    function_type: Rc<FunctionType>,
+    function_type: Rc<FunctionType<'ast>>,
     // TODO: flags field instead?
     always_inline: bool,
 }
 
 #[derive(Debug)]
-pub enum VariableUpdateError {
-    TypeMismatch(Type),
+pub enum VariableUpdateError<'ast> {
+    TypeMismatch(Type<'ast>),
 }
 
 impl<'ast> ArgumentInfo<'ast> {
-    pub fn new(name: &'ast str, ty: Type, binding: BindingType) -> Self {
+    pub fn new(name: &'ast str, ty: Type<'ast>, binding: BindingType) -> Self {
         Self { name, ty, binding }
     }
 
@@ -41,7 +41,7 @@ impl<'ast> ArgumentInfo<'ast> {
     }
 
     #[inline]
-    pub fn ty(&self) -> &Type {
+    pub fn ty(&self) -> &Type<'ast> {
         &self.ty
     }
 
@@ -58,7 +58,7 @@ impl<'ast> ArgumentInfo<'ast> {
 }
 
 impl<'ast> FunctionInfo<'ast> {
-    pub fn new(name: &'ast str, body: &'ast Spanned<Ast<'ast>>, args: &'ast [Spanned<ArgumentInfo<'ast>>], return_type: Type, declaration_handle: Handle) -> Self {
+    pub fn new(name: &'ast str, body: &'ast Spanned<Ast<'ast>>, args: &'ast [Spanned<ArgumentInfo<'ast>>], return_type: Type<'ast>, declaration_handle: Handle) -> Self {
         let function_type = FunctionType {
             return_type,
             arg_types: args.iter().map(|arg| arg.0.ty.clone()).collect(),
@@ -83,11 +83,11 @@ impl<'ast> FunctionInfo<'ast> {
         self.always_inline
     }
 
-    pub fn query_variable_type(&self, handle: Handle) -> Option<&Type> {
+    pub fn query_variable_type(&self, handle: Handle) -> Option<&Type<'ast>> {
         self.variable_types.get(&handle)
     }
 
-    pub fn update_variable_type(&mut self, handle: Handle, ty: Type) -> Result<(), VariableUpdateError> {
+    pub fn update_variable_type(&mut self, handle: Handle, ty: Type<'ast>) -> Result<(), VariableUpdateError<'ast>> {
         match self.variable_types.entry(handle) {
             Entry::Occupied(entry) => {
                 if *entry.get() == ty {
@@ -103,7 +103,7 @@ impl<'ast> FunctionInfo<'ast> {
         }
     }
 
-    pub fn variables(&self) -> impl Iterator<Item = (Handle, &Type)> {
+    pub fn variables(&self) -> impl Iterator<Item = (Handle, &Type<'_>)> {
         self.variable_types.iter().map(|(k, v)| (*k, v))
     }
 
@@ -123,12 +123,12 @@ impl<'ast> FunctionInfo<'ast> {
     }
 
     #[inline]
-    pub fn function_type(&self) -> Rc<FunctionType> {
+    pub fn function_type(&self) -> Rc<FunctionType<'ast>> {
         self.function_type.clone()
     }
 
     #[inline]
-    pub fn return_type(&self) -> &Type {
+    pub fn return_type(&self) -> &Type<'ast> {
         &self.function_type.return_type
     }
 

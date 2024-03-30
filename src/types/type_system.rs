@@ -2,23 +2,24 @@ use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct FunctionType {
-    pub return_type: Type,
-    pub arg_types: Vec<Type>,
+pub struct FunctionType<'a> {
+    pub return_type: Type<'a>,
+    pub arg_types: Vec<Type<'a>>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Type {
+pub enum Type<'a> {
     Int,
     Double,
     Bool,
     Void,
-    Function(Rc<FunctionType>),
+    Function(Rc<FunctionType<'a>>),
+    UserType(&'a str),
     #[default]
     Error,
 }
 
-impl Display for Type {
+impl<'a> Display for Type<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Type::Int => write!(f, "int"),
@@ -36,11 +37,12 @@ impl Display for Type {
                 }
                 write!(f, ") -> {}", func.return_type)
             }
+            Type::UserType(name) => write!(f, "{}", name),
         }
     }
 }
 
-impl Type {
+impl Type<'_> {
     pub fn is_numeric(&self) -> bool {
         matches!(self, Type::Int | Type::Double)
     }

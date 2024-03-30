@@ -1,7 +1,7 @@
 use crate::analysis::semantic_analysis::SemanticAnalyser;
 use crate::syntax::ast::{
-    Assignment, Ast, BinaryOperation, BinaryOperationKind, Declaration, FunctionCall, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation,
-    UnaryOperationKind,
+    Assignment, Ast, BinaryOperation, BinaryOperationKind, Class, Declaration, FunctionCall, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList,
+    UnaryOperation, UnaryOperationKind,
 };
 use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
@@ -45,7 +45,7 @@ struct CodeGenInner<'ctx> {
     semantic_analyser: &'ctx SemanticAnalyser<'ctx>,
     function_declaration_handle_to_function_value: HashMap<Handle, FunctionValue<'ctx>>,
     optimization_level: u32,
-    type_to_llvm_type: HashMap<Type, AnyTypeEnum<'ctx>>,
+    type_to_llvm_type: HashMap<Type<'ctx>, AnyTypeEnum<'ctx>>,
     // Primitive types here for faster lookup
     void_type: VoidType<'ctx>,
     int_type: IntType<'ctx>,
@@ -124,13 +124,25 @@ impl<'ctx> CodeGenLLVM<'ctx> {
         self.pass_managers.push(self.create_pass_manager());
     }
 
-    pub fn declare_function(&mut self, function_info: &FunctionInfo) {
+    pub fn codegen_types(&mut self) {
+        // TODO: hardcoded to first module right now
+        for class in self.semantic_analyser.class_map_iter() {
+            self.modules[0].declare_struct(class.name);
+            println!("class: {:?}", class);
+        }
+
+        for class in self.semantic_analyser.class_map_iter() {
+            self.modules[0].codegen_struct(class);
+        }
+    }
+
+    pub fn declare_function(&mut self, function_info: &'ctx FunctionInfo<'ctx>) {
         // TODO: hardcoded to first module right now
         let function_value = self.modules[0].declare_function(function_info);
         self.modules[0].function_declaration_handle_to_function_value.insert(function_info.declaration_handle(), function_value);
     }
 
-    pub fn codegen_function(&mut self, function_info: &FunctionInfo) {
+    pub fn codegen_function(&mut self, function_info: &'ctx FunctionInfo<'ctx>) {
         let builder = self.context.0.create_builder();
 
         // TODO: hardcoded to first module right now
@@ -174,7 +186,19 @@ impl<'ctx> CodeGenInner<'ctx> {
         }
     }
 
-    fn construct_llvm_function_type(&mut self, function_type: &FunctionType) -> types::FunctionType<'ctx> {
+    fn declare_struct(&mut self, name: &'ctx str) {
+        let structure = self.module.get_context().opaque_struct_type(name);
+        self.type_to_llvm_type.insert(Type::UserType(name), AnyTypeEnum::StructType(structure));
+    }
+
+    fn codegen_struct(&mut self, class: &'ctx Class<'ctx>) {
+        let structure = self.module.get_context().get_struct_type(class.name).expect("struct should be declared");
+        // TODO: if it's a class, it should be a pointer?
+        let field_types = class.fields.iter().map(|field| self.get_or_insert_llvm_type(&field.0.ty)).collect::<Vec<_>>();
+        structure.set_body(field_types.as_slice(), false);
+    }
+
+    fn construct_llvm_function_type(&mut self, function_type: &FunctionType<'ctx>) -> types::FunctionType<'ctx> {
         let return_type = self.get_or_insert_llvm_type(&function_type.return_type);
         let arg_types = function_type
             .arg_types
@@ -197,7 +221,7 @@ impl<'ctx> CodeGenInner<'ctx> {
         }
     }
 
-    fn get_or_insert_llvm_type(&mut self, ty: &Type) -> BasicTypeEnum<'ctx> {
+    fn get_or_insert_llvm_type(&mut self, ty: &Type<'ctx>) -> BasicTypeEnum<'ctx> {
         if let Some(ty) = self.type_to_llvm_type.get(ty) {
             self.convert_to_basic_type(ty)
         } else {
@@ -210,15 +234,15 @@ impl<'ctx> CodeGenInner<'ctx> {
         }
     }
 
-    fn get_llvm_type_raw(&self, ty: &Type) -> &AnyTypeEnum<'ctx> {
+    fn get_llvm_type_raw(&self, ty: &Type<'ctx>) -> &AnyTypeEnum<'ctx> {
         self.type_to_llvm_type.get(ty).expect("type should exist")
     }
 
-    fn get_llvm_type(&self, ty: &Type) -> BasicTypeEnum<'ctx> {
+    fn get_llvm_type(&self, ty: &Type<'ctx>) -> BasicTypeEnum<'ctx> {
         self.convert_to_basic_type(self.get_llvm_type_raw(ty))
     }
 
-    pub fn declare_function(&mut self, function_info: &FunctionInfo) -> FunctionValue<'ctx> {
+    pub fn declare_function(&mut self, function_info: &FunctionInfo<'ctx>) -> FunctionValue<'ctx> {
         let arg_types = function_info
             .args()
             .iter()
@@ -240,13 +264,13 @@ impl<'ctx> CodeGenInner<'ctx> {
     }
 
     // TODO: can this be more efficient than a 2-pass system?
-    pub fn codegen_function_prepare_types(&mut self, function_info: &FunctionInfo) {
+    pub fn codegen_function_prepare_types(&mut self, function_info: &'ctx FunctionInfo<'ctx>) {
         for (_, variable_type) in function_info.variables() {
             self.get_or_insert_llvm_type(variable_type);
         }
     }
 
-    pub fn codegen_function(&self, function_info: &FunctionInfo, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
+    pub fn codegen_function(&self, function_info: &'ctx FunctionInfo<'ctx>, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
         let context = &codegen.context.0;
         let function_value = self.function_declaration_handle_to_function_value[&function_info.declaration_handle()];
 

@@ -18,7 +18,7 @@ pub(crate) struct TypeCheckerPass<'ast, 'f> {
     pub(crate) function_map: &'f mut HashMap<Handle, FunctionInfo<'ast>>,
     pub(crate) scope_reference_map: &'f ScopeReferenceMap,
     pub(crate) binding_types: HashMap<Handle, BindingType>,
-    pub(crate) indirect_call_function_types: HashMap<Handle, Rc<FunctionType>>,
+    pub(crate) indirect_call_function_types: HashMap<Handle, Rc<FunctionType<'ast>>>,
     pub(crate) semantic_error_list: &'f mut SemanticErrorList,
 }
 
@@ -56,7 +56,7 @@ impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
         *self.scope_reference_map.references.get(&handle).expect("scope resolution ensures this mapping exists")
     }
 
-    fn query_handle_type(&self, handle: Handle) -> Type {
+    fn query_handle_type(&self, handle: Handle) -> Type<'ast> {
         if let Some(ty) = self.current_function_scope().expect("just entered a function").query_variable_type(handle) {
             ty.clone()
         } else {
@@ -69,25 +69,25 @@ impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
     }
 }
 
-impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
-    fn visit_literal_int(&mut self, _: Handle, _: &'ast LiteralInt, _: Span) -> Type {
+impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 'f> {
+    fn visit_literal_int(&mut self, _: Handle, _: &'ast LiteralInt, _: Span) -> Type<'ast> {
         Type::Int
     }
 
-    fn visit_literal_double(&mut self, _: Handle, _: &'ast LiteralFloat, _: Span) -> Type {
+    fn visit_literal_double(&mut self, _: Handle, _: &'ast LiteralFloat, _: Span) -> Type<'ast> {
         Type::Double
     }
 
-    fn visit_literal_bool(&mut self, _: Handle, _: &'ast LiteralBool, _: Span) -> Type {
+    fn visit_literal_bool(&mut self, _: Handle, _: &'ast LiteralBool, _: Span) -> Type<'ast> {
         Type::Bool
     }
 
-    fn visit_identifier(&mut self, handle: Handle, _: &'ast Identifier<'ast>, _: Span) -> Type {
+    fn visit_identifier(&mut self, handle: Handle, _: &'ast Identifier<'ast>, _: Span) -> Type<'ast> {
         let referenced_handle = self.map_ast_handle_to_declarator(handle);
         self.query_handle_type(referenced_handle).clone()
     }
 
-    fn visit_binary_operation(&mut self, _: Handle, node: &'ast BinaryOperation<'ast>, span: Span) -> Type {
+    fn visit_binary_operation(&mut self, _: Handle, node: &'ast BinaryOperation<'ast>, span: Span) -> Type<'ast> {
         let lhs_type = self.visit(&node.0);
         let rhs_type = self.visit(&node.2);
 
@@ -128,7 +128,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         }
     }
 
-    fn visit_unary_operation(&mut self, _: Handle, node: &'ast UnaryOperation<'ast>, span: Span) -> Type {
+    fn visit_unary_operation(&mut self, _: Handle, node: &'ast UnaryOperation<'ast>, span: Span) -> Type<'ast> {
         let rhs_type = self.visit(&node.1);
         if !rhs_type.is_numeric() {
             // Don't report propagated errors
@@ -148,7 +148,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         }
     }
 
-    fn visit_assignment(&mut self, handle: Handle, node: &'ast Assignment<'ast>, span: Span) -> Type {
+    fn visit_assignment(&mut self, handle: Handle, node: &'ast Assignment<'ast>, span: Span) -> Type<'ast> {
         let handle = self.map_ast_handle_to_declarator(handle);
         let binding_type = self.binding_types[&handle];
 
@@ -181,7 +181,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         }
     }
 
-    fn visit_declaration(&mut self, handle: Handle, node: &'ast Declaration<'ast>, _: Span) -> Type {
+    fn visit_declaration(&mut self, handle: Handle, node: &'ast Declaration<'ast>, _: Span) -> Type<'ast> {
         let rhs_type = self.visit(&node.assignment.1);
         self.current_function_scope_mut()
             .expect("must be in function context")
@@ -191,7 +191,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         rhs_type
     }
 
-    fn visit_statement_list(&mut self, _: Handle, node: &'ast StatementList<'ast>, _: Span) -> Type {
+    fn visit_statement_list(&mut self, _: Handle, node: &'ast StatementList<'ast>, _: Span) -> Type<'ast> {
         let mut last_return_span: Option<Span> = None;
         let mut found_dead_code_after_return = false;
         for statement in &node.0 {
@@ -214,7 +214,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         Type::Void
     }
 
-    fn visit_function_declaration(&mut self, handle: Handle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> Type {
+    fn visit_function_declaration(&mut self, handle: Handle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> Type<'ast> {
         self.enter_function_scope(handle);
         let scope = self.current_function_scope_mut().expect("just entered a function");
         for arg in &node.args {
@@ -230,7 +230,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         Type::Void
     }
 
-    fn visit_if_statement(&mut self, _: Handle, node: &'ast IfStatement<'ast>, _: Span) -> Type {
+    fn visit_if_statement(&mut self, _: Handle, node: &'ast IfStatement<'ast>, _: Span) -> Type<'ast> {
         let condition_type = self.visit(&node.condition);
         if condition_type.is_error() {
             return Type::Error;
@@ -246,7 +246,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         Type::Void
     }
 
-    fn visit_return_statement(&mut self, _: Handle, node: &'ast ReturnStatement<'ast>, span: Span) -> Type {
+    fn visit_return_statement(&mut self, _: Handle, node: &'ast ReturnStatement<'ast>, span: Span) -> Type<'ast> {
         // TODO: implicit casts?
         if let Some(value) = &node.value {
             let returned_type = self.visit(value);
@@ -273,7 +273,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
         Type::Void
     }
 
-    fn visit_function_call(&mut self, _: Handle, node: &'ast FunctionCall<'ast>, span: Span) -> Type {
+    fn visit_function_call(&mut self, _: Handle, node: &'ast FunctionCall<'ast>, span: Span) -> Type<'ast> {
         let callee_type = match self.visit(&node.callee) {
             Type::Function(function) => function,
             ty => {

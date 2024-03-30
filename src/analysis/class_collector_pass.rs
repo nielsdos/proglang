@@ -30,18 +30,13 @@ impl<'f, 'ast> SemanticAnalysisPass<'ast, ()> for ClassCollectorPass<'f, 'ast> {
     fn visit_class(&mut self, handle: Handle, node: &'ast Class<'ast>, span: Span) {
         match self.seen_class_names.get(node.name) {
             Some(previous_span) => {
-                self.semantic_error_list.report_error_with_note(
-                    span,
-                    format!("the class '{}' was already declared", node.name),
-                    *previous_span,
-                    "previously declared here".into(),
-                );
+                self.semantic_error_list
+                    .report_error_with_note(span, format!("the class '{}' was already declared", node.name), *previous_span, "previously declared here".into());
             }
             None => {
                 // TODO: check for duplicate fields
                 self.seen_class_names.insert(node.name, span);
-                self.class_map
-                    .insert(handle, node);
+                self.class_map.insert(handle, node);
             }
         }
     }

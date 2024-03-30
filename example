@@ -2,6 +2,3 @@ class Foo:
     int x
     int y
 
-class Foo:
-    int z
-

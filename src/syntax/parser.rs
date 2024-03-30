@@ -1,6 +1,9 @@
 // Based on the sample code from https://github.com/zesterer/chumsky/blob/main/examples/nano_rust.rs
 
-use crate::syntax::ast::{Assignment, Ast, BinaryOperation, BinaryOperationKind, BindingType, Class, ClassField, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind};
+use crate::syntax::ast::{
+    Assignment, Ast, BinaryOperation, BinaryOperationKind, BindingType, Class, ClassField, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat,
+    LiteralInt, ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind,
+};
 use crate::syntax::lexer::lexer;
 use crate::syntax::span::{Span, Spanned};
 use crate::syntax::token::{Token, TokenTree};
@@ -198,7 +201,7 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
     })
 }
 
-fn parse_type<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Type, ParserExtra<'tokens, 'src>> {
+fn parse_type<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Type<'src>, ParserExtra<'tokens, 'src>> {
     recursive(|parse_type| {
         let predefined_ty_name = select! {
             Token::Identifier("float") => Type::Double,
@@ -283,9 +286,7 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
         .then(class_field_declarations)
         .map_with(|data, extra| (data, extra.span()))
         .then_ignore(just(Token::BlockEnd))
-        .map(|((name, fields), span)| {
-            (Ast::Class(Class { name, fields }), span)
-        });
+        .map(|((name, fields), span)| (Ast::Class(Class { name, fields }), span));
 
     function_declaration.or(class_declaration)
 }

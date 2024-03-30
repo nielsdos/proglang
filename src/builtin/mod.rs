@@ -15,7 +15,7 @@ pub struct BuiltinRecord<'b> {
     name: &'b str,
     body: Spanned<Ast<'b>>,
     args: Vec<Spanned<ArgumentInfo<'b>>>,
-    return_type: Type,
+    return_type: Type<'b>,
 }
 
 impl<'b> Default for Builtins<'b> {

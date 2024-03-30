@@ -17,7 +17,12 @@ impl<'c> CodeGen<'c> {
 
     pub fn codegen_program(&mut self) {
         self.llvm_codegen.add_module("main_module");
+        self.codegen_types();
         self.codegen_functions();
+    }
+
+    fn codegen_types(&mut self) {
+        self.llvm_codegen.codegen_types();
     }
 
     fn codegen_functions(&mut self) {
@@ -32,11 +37,11 @@ impl<'c> CodeGen<'c> {
         self.llvm_codegen.optimize();
     }
 
-    fn declare_function(&mut self, function_info: &FunctionInfo) {
+    fn declare_function(&mut self, function_info: &'c FunctionInfo<'c>) {
         self.llvm_codegen.declare_function(function_info);
     }
 
-    fn codegen_function(&mut self, function_info: &FunctionInfo) {
+    fn codegen_function(&mut self, function_info: &'c FunctionInfo<'c>) {
         self.llvm_codegen.codegen_function(function_info);
     }
 

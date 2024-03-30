@@ -1,3 +1,4 @@
+use crate::analysis::class_collector_pass::ClassCollectorPass;
 use crate::analysis::function_collector_pass::FunctionCollectorPass;
 use crate::analysis::return_check_pass::ReturnCheckPass;
 use crate::analysis::scope_resolution_pass::{ScopeReferenceMap, ScopeResolutionPass};
@@ -13,7 +14,6 @@ use crate::util::handle::Handle;
 use std::collections::{hash_map::Values, HashMap};
 use std::rc::Rc;
 use std::vec::IntoIter;
-use crate::analysis::class_collector_pass::ClassCollectorPass;
 
 pub type FunctionMap<'ast> = HashMap<Handle, FunctionInfo<'ast>>;
 pub type ClassMap<'ast> = HashMap<Handle, &'ast Class<'ast>>;
@@ -23,7 +23,8 @@ pub struct SemanticAnalyser<'ast> {
     builtins: &'ast Builtins<'ast>,
     scope_reference_map: ScopeReferenceMap,
     function_map: FunctionMap<'ast>,
-    indirect_call_function_types: HashMap<Handle, Rc<FunctionType>>,
+    class_map: ClassMap<'ast>,
+    indirect_call_function_types: HashMap<Handle, Rc<FunctionType<'ast>>>,
     errors: Vec<SemanticError>,
 }
 
@@ -34,6 +35,7 @@ impl<'ast> SemanticAnalyser<'ast> {
             builtins,
             scope_reference_map: Default::default(),
             function_map: Default::default(),
+            class_map: Default::default(),
             indirect_call_function_types: Default::default(),
             errors: vec![],
         }
@@ -76,6 +78,7 @@ impl<'ast> SemanticAnalyser<'ast> {
         let mut return_check_pass = ReturnCheckPass::new(&mut semantic_error_list);
         return_check_pass.visit(self.ast);
 
+        self.class_map = class_map;
         self.scope_reference_map = scope_reference_map;
         self.indirect_call_function_types = indirect_call_function_types;
         self.errors = semantic_error_list.into_vec();
@@ -83,6 +86,10 @@ impl<'ast> SemanticAnalyser<'ast> {
 
     pub fn errors(&self) -> &[SemanticError] {
         &self.errors
+    }
+
+    pub fn class_map_iter(&self) -> Values<'_, Handle, &Class<'ast>> {
+        self.class_map.values()
     }
 
     pub fn function_list_iter(&self) -> Values<'_, Handle, FunctionInfo<'_>> {
