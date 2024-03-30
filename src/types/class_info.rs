@@ -7,7 +7,7 @@ use std::collections::HashMap;
 #[derive(Debug)]
 pub struct ClassFieldInfo<'ast> {
     class_field: &'ast Spanned<ClassField<'ast>>,
-    index: u64,
+    index: u32,
 }
 
 #[derive(Debug)]
@@ -27,7 +27,10 @@ impl<'ast> ClassInfo<'ast> {
         match self.fields.entry(class_field.0.name) {
             Entry::Occupied(entry) => Some(entry.get().span()),
             Entry::Vacant(entry) => {
-                entry.insert(ClassFieldInfo { class_field, index: index as u64 });
+                entry.insert(ClassFieldInfo {
+                    class_field,
+                    index: index.try_into().expect("index overflow"),
+                });
                 None
             }
         }
@@ -39,9 +42,7 @@ impl<'ast> ClassInfo<'ast> {
 
     pub fn fields_iter(&self) -> impl Iterator<Item = &ClassFieldInfo<'ast>> {
         let mut tmp = self.fields.values().collect::<Vec<_>>();
-        tmp.sort_by(|a, b| {
-            a.index.cmp(&b.index)
-        });
+        tmp.sort_by(|a, b| a.index.cmp(&b.index));
         tmp.into_iter()
     }
 
@@ -63,7 +64,7 @@ impl<'ast> ClassFieldInfo<'ast> {
         self.class_field.1
     }
 
-    pub fn index(&self) -> u64 {
+    pub fn index(&self) -> u32 {
         self.index
     }
 }

@@ -33,7 +33,7 @@ pub struct SemanticAnalyser<'ast> {
 pub struct MemberAccessMetadata<'ast> {
     pub object_type: Type<'ast>,
     pub member_type: Type<'ast>,
-    pub index: u64,
+    pub index: u32,
 }
 
 impl<'ast> SemanticAnalyser<'ast> {

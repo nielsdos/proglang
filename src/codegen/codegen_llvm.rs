@@ -556,12 +556,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                 let pointee_type = self.get_llvm_type(&meta_data.object_type);
                 let member_type = self.get_llvm_type(&meta_data.member_type);
 
-                let gep = {
-                    function_context
-                        .builder
-                        .build_struct_gep(pointee_type, object.into_pointer_value(), meta_data.index as u32 /* TODO: fix type */, "gep")
-                        .unwrap()
-                };
+                let gep = { function_context.builder.build_struct_gep(pointee_type, object.into_pointer_value(), meta_data.index, "gep").unwrap() };
                 if meta_data.member_type.is_structure() {
                     Some(gep.as_basic_value_enum())
                 } else {
