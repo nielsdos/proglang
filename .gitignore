@@ -1,4 +1,9 @@
 /target
 /.idea
+
 /output.s
+/tests/**/*.s
 /test
+
+/tests/**/Output
+/tests/**/.lit_test_times.txt

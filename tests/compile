@@ -1,0 +1,4 @@
+#!/bin/bash
+cd "$(dirname "$0")"
+../target/debug/proglang --machine-friendly-output "$@"
+exit 0
