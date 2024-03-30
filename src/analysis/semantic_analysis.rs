@@ -5,7 +5,7 @@ use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::{SemanticError, SemanticErrorList};
 use crate::analysis::type_checker_pass::TypeCheckerPass;
 use crate::builtin::Builtins;
-use crate::syntax::ast::Ast;
+use crate::syntax::ast::{Ast, Class};
 use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
 use crate::types::type_system::FunctionType;
@@ -13,8 +13,10 @@ use crate::util::handle::Handle;
 use std::collections::{hash_map::Values, HashMap};
 use std::rc::Rc;
 use std::vec::IntoIter;
+use crate::analysis::class_collector_pass::ClassCollectorPass;
 
 pub type FunctionMap<'ast> = HashMap<Handle, FunctionInfo<'ast>>;
+pub type ClassMap<'ast> = HashMap<Handle, &'ast Class<'ast>>;
 
 pub struct SemanticAnalyser<'ast> {
     ast: &'ast Spanned<Ast<'ast>>,
@@ -39,6 +41,13 @@ impl<'ast> SemanticAnalyser<'ast> {
 
     pub fn analyse(&mut self) {
         let mut semantic_error_list = SemanticErrorList::default();
+
+        let class_map = {
+            let mut class_collector = ClassCollectorPass::new(&mut semantic_error_list);
+            class_collector.visit(self.ast);
+            class_collector.into_class_map()
+        };
+        println!("{:?}", class_map);
 
         self.function_map = {
             let mut function_collector = FunctionCollectorPass::new(&mut semantic_error_list);
