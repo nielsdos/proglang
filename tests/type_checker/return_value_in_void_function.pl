@@ -3,4 +3,4 @@
 fn foo():
   return 1.0
 
-# CHECK: {{.+}}: function must return a value of type 'void', but this returns a value of type 'double'
+# CHECK: {{.+}}: function must not return a value because its return type is void

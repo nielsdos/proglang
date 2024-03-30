@@ -267,10 +267,11 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
             let current_function = self.current_function_scope().expect("must be in function context");
             let function_return_type = current_function.return_type();
             if returned_type != *function_return_type {
-                self.semantic_error_list.report_error(
-                    span,
-                    format!("function must return a value of type '{}', but this returns a value of type '{}'", function_return_type, returned_type,),
-                );
+                let error = match function_return_type {
+                    Type::Void => "function must not return a value because its return type is void".to_string(),
+                    _ => format!("function must return a value of type '{}', but this returns a value of type '{}'", function_return_type, returned_type),
+                };
+                self.semantic_error_list.report_error(span, error);
             }
         } else {
             let current_function = self.current_function_scope().expect("must be in function context");
