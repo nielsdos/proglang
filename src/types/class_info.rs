@@ -38,6 +38,7 @@ impl<'ast> ClassInfo<'ast> {
     }
 
     pub fn fields_iter(&self) -> impl Iterator<Item = &ClassFieldInfo<'ast>> {
+        // TODO: keep sorting, this is in a non-deterministic order!!!
         self.fields.values()
     }
 

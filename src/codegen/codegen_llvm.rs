@@ -336,8 +336,12 @@ impl<'ctx> CodeGenInner<'ctx> {
                 let handle = self.semantic_analyser.identifier_to_declaration(ast.0.as_handle());
                 match function_context.variables.get(&handle) {
                     Some(variable) => {
-                        let value = function_context.builder.build_load(self.convert_to_basic_type(&variable.ty), variable.ptr, name);
-                        Some(value)
+                        if variable.ty.is_struct_type() {
+                            Some(variable.ptr.as_basic_value_enum())
+                        } else {
+                            let value = function_context.builder.build_load(self.convert_to_basic_type(&variable.ty), variable.ptr, name);
+                            Some(value)
+                        }
                     }
                     None => {
                         let function_value = self.function_declaration_handle_to_function_value.get(&handle).expect("function should exist");
@@ -552,17 +556,19 @@ impl<'ctx> CodeGenInner<'ctx> {
                 let pointee_type = self.get_llvm_type(&meta_data.object_type);
                 let member_type = self.get_llvm_type(&meta_data.member_type);
 
-                // SAFETY: The index was constructed in a way it is always inside the bounds of the field map,
-                // and we have emitted all field types in codegen_types().
-                let gep = unsafe {
-                    function_context.builder.build_in_bounds_gep(
+                let gep = {
+                    function_context.builder.build_struct_gep(
                         pointee_type,
                         object.into_pointer_value(),
-                        &[self.int_type.const_zero(), codegen.context.0.i32_type().const_int(meta_data.index, false)],
+                        meta_data.index as u32 /* TODO: fix type */,
                         "gep",
-                    )
+                    ).unwrap()
                 };
-                Some(function_context.builder.build_load(member_type, gep, "gep_load").as_basic_value_enum())
+                if meta_data.member_type.is_structure() {
+                    Some(gep.as_basic_value_enum())
+                } else {
+                    Some(function_context.builder.build_load(member_type, gep, "gep_load").as_basic_value_enum())
+                }
             }
             Ast::BuiltinSiToFp(handle) => {
                 let variable = &function_context.variables[handle];

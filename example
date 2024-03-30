@@ -3,8 +3,15 @@ class Foo:
     int y
 
 class B:
-    &Foo foo
+    &Foo foo1
+    Foo foo2
 
-fn test(&B b) -> int:
-    return b.foo.x + b.foo.y
+#fn test(&B b) -> int:
+#    return b.foo1.x + b.foo1.y - b.foo2.x - b.foo2.y
+
+fn test(Foo f) -> int:
+	return f.x
+
+fn test2(&B b) -> int:
+	return b.foo2.x
 

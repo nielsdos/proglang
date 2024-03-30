@@ -53,6 +53,14 @@ impl<'a> Type<'a> {
         matches!(self, Type::Error)
     }
 
+    pub fn is_reference(&self) -> bool {
+        matches!(self, Type::Reference(_))
+    }
+
+    pub fn is_structure(&self) -> bool {
+        matches!(self, Type::UserType(_))
+    }
+
     pub fn dereference(&self) -> &Type<'a> {
         match self {
             Type::Reference(ty) => &*ty,
