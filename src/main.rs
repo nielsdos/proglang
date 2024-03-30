@@ -62,10 +62,10 @@ fn main() -> ExitCode {
 
         if args.machine_friendly_output {
             for error in semantic_analyser.errors() {
-                println!("{}:{:?}: {}", filename, error.span(), error.error_text());
                 if let Some(note) = error.note() {
                     println!("Note: {}:{:?}: {}", filename, note.span(), note.error_text());
                 }
+                println!("{}:{:?}: {}", filename, error.span(), error.error_text());
             }
         } else {
             for error in semantic_analyser.errors() {

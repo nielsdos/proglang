@@ -207,7 +207,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type> for TypeCheckerPass<'ast, 'f> {
                 if !found_dead_code_after_return {
                     self.semantic_error_list.report_error_with_note(
                         span,
-                        "therefore, this statement and any following statements in this block, are unreachable".to_string(),
+                        "therefore, this statement and any following statements in this block are unreachable".to_string(),
                         *last_return_span,
                         "this is the last non-dead statement in this block".to_string(),
                     );
