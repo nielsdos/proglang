@@ -1,12 +1,4 @@
-# RUN: ../compile --optimization-level=0 %s |& filecheck %s
-
-fn bar() -> int:
-  return 1
-
-# CHECK: define i64 @bar() {
-# CHECK-NEXT: entry:
-# CHECK-NEXT:   ret i64 1
-# CHECK-NEXT: }
+# RUN: ../compile --optimization-level=0 %s |& FileCheck %s
 
 fn foo() -> int:
   return bar()
@@ -15,4 +7,12 @@ fn foo() -> int:
 # CHECK-NEXT: entry:
 # CHECK-NEXT:   %direct_call = call i64 @bar()
 # CHECK-NEXT:   ret i64 %direct_call
+# CHECK-NEXT: }
+
+fn bar() -> int:
+  return 1
+
+# CHECK: define i64 @bar() {
+# CHECK-NEXT: entry:
+# CHECK-NEXT:   ret i64 1
 # CHECK-NEXT: }

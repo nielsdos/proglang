@@ -1,4 +1,4 @@
-# RUN: ../compile %s |& filecheck %s
+# RUN: ../compile %s |& FileCheck %s
 
 class Foo:
     int x
