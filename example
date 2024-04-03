@@ -7,9 +7,11 @@ class B:
     &Foo foo1
     Foo foo2
 
-#fn test(&B b) -> int:
-#    return b.foo1.x + b.foo1.y - b.foo2.x - b.foo2.y
+fn test1(Foo f) -> int:
+    return f.x
 
-fn test(Foo f) -> int:
-	return f.f.f.f.f.f.f.x
+fn test2(&Foo f) -> int:
+    return f.x
 
+fn test3(&B b) -> int:
+    return b.foo1.f.f.x + b.foo2.y

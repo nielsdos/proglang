@@ -1,4 +1,5 @@
-use crate::syntax::ast::{Ast, BindingType, ReturnStatement};
+use crate::mid_ir::ir::{MidExpression, MidReturn, MidStatement, MidVariableReference};
+use crate::syntax::ast::BindingType;
 use crate::syntax::span::Spanned;
 use crate::types::function_info::ArgumentInfo;
 use crate::types::type_system::Type;
@@ -13,7 +14,7 @@ pub struct Builtins<'b> {
 
 pub struct BuiltinRecord<'b> {
     name: &'b str,
-    body: Spanned<Ast<'b>>,
+    body: MidStatement<'b>,
     args: Vec<Spanned<ArgumentInfo<'b>>>,
     return_type: Type<'b>,
 }
@@ -31,9 +32,9 @@ impl<'b> Builtins<'b> {
 
     fn create_builtin_float() -> BuiltinRecord<'b> {
         let args = vec![span(ArgumentInfo::new("value", Type::Int, BindingType::ImmutableVariable))];
-        let body = span(Ast::ReturnStatement(ReturnStatement {
-            value: Some(Box::new(span(Ast::BuiltinSiToFp(args[0].0.as_handle())))),
-        }));
+        let body = MidStatement::Return(MidReturn {
+            value: Some(MidExpression::BuiltinSiToFp(Box::new(MidExpression::VariableRead(MidVariableReference { variable_index: 0 })))),
+        });
         BuiltinRecord {
             name: "float",
             body,
@@ -52,7 +53,7 @@ impl<'b> BuiltinRecord<'b> {
         self.name
     }
 
-    pub fn body(&'b self) -> &'b Spanned<Ast<'b>> {
+    pub fn body(&self) -> &MidStatement {
         &self.body
     }
 

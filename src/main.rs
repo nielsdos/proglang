@@ -4,6 +4,7 @@ use crate::analysis::semantic_analysis::SemanticAnalyser;
 use crate::builtin::Builtins;
 use crate::codegen::codegen_driver::CodeGen;
 use crate::codegen::codegen_llvm::CodeGenContext;
+use crate::mid_ir::construction::Construction;
 use crate::syntax::parser::{parse, ParserOptions};
 use ariadne::{sources, Color, Label, Report, ReportKind};
 use clap::Parser;
@@ -15,6 +16,7 @@ use std::rc::Rc;
 pub mod analysis;
 pub mod builtin;
 pub mod codegen;
+pub mod mid_ir;
 pub mod syntax;
 pub mod types;
 pub mod util;
@@ -84,11 +86,20 @@ fn main() -> ExitCode {
             }
         }
 
+        let mut mid_functions = Vec::new();
+        for func in semantic_analyser.function_list_iter() {
+            let construction = Construction::new(&semantic_analyser, func);
+            let ir = construction.construct_from_function_declaration();
+            //println!("{:#?}", ir);
+            mid_functions.push(ir);
+        }
+
         if semantic_analyser.errors().is_empty() {
+            // TODO: would be great to free up memory if we could drop semantic_analyser before full-on codegen
             let codegen_context = CodeGenContext::default();
-            let mut codegen = CodeGen::new(&semantic_analyser, &codegen_context, args.optimization_level);
+            let mut codegen = CodeGen::new(&codegen_context, &mid_functions, args.optimization_level);
             println!();
-            codegen.codegen_program();
+            codegen.codegen_program(semantic_analyser.class_map());
             codegen.dump();
             ExitCode::from(0)
         } else {

@@ -1,11 +1,7 @@
-use crate::analysis::semantic_analysis::SemanticAnalyser;
-use crate::syntax::ast::{
-    Assignment, Ast, BinaryOperation, BinaryOperationKind, Declaration, FunctionCall, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList,
-    UnaryOperation, UnaryOperationKind,
-};
-use crate::syntax::span::Spanned;
+use crate::analysis::semantic_analysis::ClassMap;
+use crate::mid_ir::ir::{MidExpression, MidFunction, MidStatement, MidStatementList, MidTarget, MidVariableReference};
+use crate::syntax::ast::BinaryOperationKind;
 use crate::types::class_info::ClassInfo;
-use crate::types::function_info::FunctionInfo;
 use crate::types::type_system::{FunctionType, Type};
 use crate::util::handle::Handle;
 use inkwell::attributes::{Attribute, AttributeLoc};
@@ -16,7 +12,7 @@ use inkwell::module::Module;
 use inkwell::passes::PassManager;
 use inkwell::targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple};
 use inkwell::types::{AnyTypeEnum, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FloatType, IntType, VoidType};
-use inkwell::values::{BasicValue, BasicValueEnum, FunctionValue, PointerValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue};
 use inkwell::{types, AddressSpace, IntPredicate, OptimizationLevel};
 use smallvec::SmallVec;
 use std::collections::HashMap;
@@ -38,12 +34,11 @@ struct VariableInfo<'ctx> {
 struct CodeGenFunctionContext<'ctx> {
     builder: Builder<'ctx>,
     function_value: FunctionValue<'ctx>,
-    variables: HashMap<Handle, VariableInfo<'ctx>>,
+    variables: Vec<VariableInfo<'ctx>>,
 }
 
 struct CodeGenInner<'ctx> {
     module: Module<'ctx>,
-    semantic_analyser: &'ctx SemanticAnalyser<'ctx>,
     function_declaration_handle_to_function_value: HashMap<Handle, FunctionValue<'ctx>>,
     optimization_level: u32,
     type_to_llvm_type: HashMap<Type<'ctx>, AnyTypeEnum<'ctx>>,
@@ -57,17 +52,15 @@ struct CodeGenInner<'ctx> {
 pub struct CodeGenLLVM<'ctx> {
     context: &'ctx CodeGenContext,
     optimization_level: u32,
-    semantic_analyser: &'ctx SemanticAnalyser<'ctx>,
     modules: Vec<CodeGenInner<'ctx>>,
     pass_managers: Vec<PassManager<Module<'ctx>>>,
 }
 
 impl<'ctx> CodeGenLLVM<'ctx> {
-    pub fn new(context: &'ctx CodeGenContext, semantic_analyser: &'ctx SemanticAnalyser, optimization_level: u32) -> Self {
+    pub fn new(context: &'ctx CodeGenContext, optimization_level: u32) -> Self {
         Self {
             context,
             optimization_level,
-            semantic_analyser,
             modules: Vec::new(),
             pass_managers: Vec::new(),
         }
@@ -120,35 +113,35 @@ impl<'ctx> CodeGenLLVM<'ctx> {
 
     pub fn add_module(&mut self, module_name: &'ctx str) {
         let module = self.context.0.create_module(module_name);
-        let inner = CodeGenInner::new(module, self.semantic_analyser, self.optimization_level, &self.context.0);
+        let inner = CodeGenInner::new(module, self.optimization_level, &self.context.0);
         self.modules.push(inner);
         self.pass_managers.push(self.create_pass_manager());
     }
 
-    pub fn codegen_types(&mut self) {
+    pub fn codegen_types(&mut self, class_map: &'ctx ClassMap<'ctx>) {
         // TODO: hardcoded to first module right now
-        for class in self.semantic_analyser.class_map_iter() {
+        for class in class_map.values() {
             self.modules[0].declare_struct(class.name());
             println!("class: {:?}", class);
         }
 
-        for class in self.semantic_analyser.class_map_iter() {
+        for class in class_map.values() {
             self.modules[0].codegen_struct(class);
         }
     }
 
-    pub fn declare_function(&mut self, function_info: &'ctx FunctionInfo<'ctx>) {
+    pub fn declare_function(&mut self, mid_function: &'ctx MidFunction<'ctx>) {
         // TODO: hardcoded to first module right now
-        let function_value = self.modules[0].declare_function(function_info);
-        self.modules[0].function_declaration_handle_to_function_value.insert(function_info.declaration_handle(), function_value);
+        let function_value = self.modules[0].declare_function(mid_function);
+        self.modules[0].function_declaration_handle_to_function_value.insert(mid_function.declaration_handle, function_value);
     }
 
-    pub fn codegen_function(&mut self, function_info: &'ctx FunctionInfo<'ctx>) {
+    pub fn codegen_function(&mut self, mid_function: &'ctx MidFunction<'ctx>) {
         let builder = self.context.0.create_builder();
 
         // TODO: hardcoded to first module right now
-        self.modules[0].codegen_function_prepare_types(function_info);
-        self.modules[0].codegen_function(function_info, builder, self);
+        self.modules[0].codegen_function_prepare_types(mid_function);
+        self.modules[0].codegen_function(mid_function, builder, self);
     }
 
     pub fn optimize(&self) {
@@ -163,7 +156,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
 }
 
 impl<'ctx> CodeGenInner<'ctx> {
-    pub fn new(module: Module<'ctx>, semantic_analyser: &'ctx SemanticAnalyser<'ctx>, optimization_level: u32, context: &'ctx Context) -> Self {
+    pub fn new(module: Module<'ctx>, optimization_level: u32, context: &'ctx Context) -> Self {
         let mut type_to_llvm_type = HashMap::new();
 
         // Store basic types
@@ -176,7 +169,6 @@ impl<'ctx> CodeGenInner<'ctx> {
 
         Self {
             module,
-            semantic_analyser,
             function_declaration_handle_to_function_value: Default::default(),
             optimization_level,
             type_to_llvm_type,
@@ -243,39 +235,39 @@ impl<'ctx> CodeGenInner<'ctx> {
         self.convert_to_basic_type(self.get_llvm_type_raw(ty))
     }
 
-    pub fn declare_function(&mut self, function_info: &FunctionInfo<'ctx>) -> FunctionValue<'ctx> {
-        let arg_types = function_info
-            .args()
+    pub fn declare_function(&mut self, mid_function: &'ctx MidFunction<'ctx>) -> FunctionValue<'ctx> {
+        let arg_types = mid_function
+            .function_type
+            .arg_types
             .iter()
             .map(|arg| {
-                let arg = &arg.0;
-                let ty = self.get_or_insert_llvm_type(arg.ty());
+                let ty = self.get_or_insert_llvm_type(arg);
                 BasicMetadataTypeEnum::from(ty)
             })
             .collect::<SmallVec<[BasicMetadataTypeEnum<'ctx>; 4]>>();
 
         // TODO: use function type construction helper (and fixup void in that place)
-        let function_type = if *function_info.return_type() == Type::Void {
+        let function_type = if *mid_function.return_type() == Type::Void {
             self.void_type.fn_type(arg_types.as_slice(), false)
         } else {
-            self.get_or_insert_llvm_type(function_info.return_type()).fn_type(arg_types.as_slice(), false)
+            self.get_or_insert_llvm_type(mid_function.return_type()).fn_type(arg_types.as_slice(), false)
         };
 
-        self.module.add_function(function_info.name(), function_type, None)
+        self.module.add_function(mid_function.name, function_type, None)
     }
 
     // TODO: can this be more efficient than a 2-pass system?
-    pub fn codegen_function_prepare_types(&mut self, function_info: &'ctx FunctionInfo<'ctx>) {
-        for (_, variable_type) in function_info.variables() {
+    pub fn codegen_function_prepare_types(&mut self, mid_function: &'ctx MidFunction<'ctx>) {
+        for variable_type in mid_function.variables.iter() {
             self.get_or_insert_llvm_type(variable_type);
         }
     }
 
-    pub fn codegen_function(&self, function_info: &'ctx FunctionInfo<'ctx>, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
+    pub fn codegen_function(&self, mid_function: &'ctx MidFunction<'ctx>, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
         let context = &codegen.context.0;
-        let function_value = self.function_declaration_handle_to_function_value[&function_info.declaration_handle()];
+        let function_value = self.function_declaration_handle_to_function_value[&mid_function.declaration_handle];
 
-        if function_info.is_always_inline() {
+        if mid_function.always_inline {
             let always_inline = Attribute::get_named_enum_kind_id("alwaysinline");
             let attr = context.create_enum_attribute(always_inline, 0);
             function_value.add_attribute(AttributeLoc::Function, attr);
@@ -284,36 +276,33 @@ impl<'ctx> CodeGenInner<'ctx> {
         let basic_block = context.append_basic_block(function_value, "entry");
         builder.position_at_end(basic_block);
 
-        let mut variables = HashMap::new();
+        let mut variables = Vec::new();
 
         // Create memory locations for the local variables
-        for (variable_handle, variable_type) in function_info.variables() {
-            // Can't have a declaration without an assignment, so a default value is not necessary
+        for variable_type in &mid_function.variables {
+            // Can't have a declaration without an assignment, so setting a default value is not necessary
             let variable_type = self.get_llvm_type_raw(variable_type);
             let variable_memory = builder.build_alloca(self.convert_to_basic_type(variable_type), "var");
-            variables.insert(
-                variable_handle,
-                VariableInfo {
-                    ptr: variable_memory,
-                    ty: *variable_type,
-                },
-            );
+            variables.push(VariableInfo {
+                ptr: variable_memory,
+                ty: *variable_type,
+            });
         }
 
         // Copy arguments to the function's scope
-        for (index, arg) in function_info.args().iter().enumerate() {
-            let variable_memory = variables[&arg.0.as_handle()].ptr;
-            let arg_value = function_value.get_nth_param(index as u32).expect("argument should exist");
+        for (argument_index, &variable_index) in mid_function.arg_idx_to_var_idx.iter().enumerate() {
+            let variable_memory = variables[variable_index].ptr;
+            let arg_value = function_value.get_nth_param(argument_index as u32).expect("argument should exist");
             builder.build_store(variable_memory, arg_value);
         }
 
         // Emit instructions
-        let body = function_info.body();
+        let body = &mid_function.statements;
         let function_context = CodeGenFunctionContext { builder, function_value, variables };
-        self.emit_instructions(body, &function_context, codegen);
+        self.emit_statement(body, &function_context, codegen);
 
         if function_context.is_bb_unterminated() {
-            if *function_info.return_type() == Type::Void {
+            if *mid_function.return_type() == Type::Void {
                 function_context.builder.build_return(None);
             } else {
                 function_context.builder.build_unreachable();
@@ -322,115 +311,146 @@ impl<'ctx> CodeGenInner<'ctx> {
 
         if !function_value.verify(true) {
             function_value.print_to_stderr();
-            panic!("Function '{}' is invalid", function_info.name());
+            panic!("Function '{}' is invalid", mid_function.name);
         }
     }
 
-    fn emit_instructions_expect<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) -> BasicValueEnum<'ctx> {
-        self.emit_instructions(ast, function_context, codegen).expect("ast should result in a value")
+    fn emit_statement_list(&self, statement_list: &'ctx MidStatementList, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
+        for statement in &statement_list.list {
+            self.emit_statement(statement, function_context, codegen);
+        }
     }
 
-    fn emit_instructions<'ast>(&self, ast: &'ast Spanned<Ast<'ast>>, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) -> Option<BasicValueEnum<'ctx>> {
-        match &ast.0 {
-            Ast::Identifier(Identifier(name)) => {
-                let handle = self.semantic_analyser.identifier_to_declaration(ast.0.as_handle());
-                match function_context.variables.get(&handle) {
-                    Some(variable) => {
-                        if variable.ty.is_struct_type() {
-                            Some(variable.ptr.as_basic_value_enum())
-                        } else {
-                            let value = function_context.builder.build_load(self.convert_to_basic_type(&variable.ty), variable.ptr, name);
-                            Some(value)
-                        }
-                    }
-                    None => {
-                        let function_value = self.function_declaration_handle_to_function_value.get(&handle).expect("function should exist");
-                        let function_pointer = BasicValueEnum::PointerValue(function_value.as_global_value().as_pointer_value());
-                        Some(function_pointer)
+    fn emit_statement(&self, statement: &'ctx MidStatement, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
+        match statement {
+            MidStatement::StatementList(statement_list) => {
+                self.emit_statement_list(statement_list, function_context, codegen);
+            }
+            MidStatement::Assignment(assignment) => {
+                let value = self.emit_expression(&assignment.value, function_context);
+                let target = self.emit_target(&assignment.target, function_context);
+                function_context.builder.build_store(target, value);
+            }
+            MidStatement::Return(return_statement) => match &return_statement.value {
+                Some(value) => {
+                    function_context.builder.build_return(Some(&self.emit_expression(value, function_context)));
+                }
+                None => {
+                    function_context.builder.build_return(None);
+                }
+            },
+            MidStatement::If(if_statement) => {
+                let condition = self.emit_expression(&if_statement.condition, function_context);
+
+                let true_block = codegen.context.0.append_basic_block(function_context.function_value, "then");
+                let after_if_block = codegen.context.0.append_basic_block(function_context.function_value, "after_if");
+                let false_block = if if_statement.else_statements.is_none() {
+                    after_if_block
+                } else {
+                    codegen.context.0.append_basic_block(function_context.function_value, "else")
+                };
+
+                function_context.builder.build_conditional_branch(condition.into_int_value(), true_block, false_block);
+
+                function_context.builder.position_at_end(true_block);
+                self.emit_statement_list(&if_statement.then_statements, function_context, codegen);
+                if function_context.is_bb_unterminated() {
+                    function_context.builder.build_unconditional_branch(after_if_block);
+                }
+
+                if let Some(else_statements) = &if_statement.else_statements {
+                    function_context.builder.position_at_end(false_block);
+                    self.emit_statement_list(else_statements, function_context, codegen);
+                    if function_context.is_bb_unterminated() {
+                        function_context.builder.build_unconditional_branch(after_if_block);
                     }
                 }
-            }
-            Ast::UnaryOperation(UnaryOperation(operation, operand)) => {
-                let operand_value = self.emit_instructions_expect(operand, function_context, codegen);
-                match operation {
-                    UnaryOperationKind::Minus => {
-                        if operand_value.is_int_value() {
-                            // TODO: overflow?
-                            let result = function_context.builder.build_int_neg(operand_value.into_int_value(), "neg");
-                            Some(result.into())
-                        } else {
-                            let result = function_context.builder.build_float_neg(operand_value.into_float_value(), "neg");
-                            Some(result.into())
-                        }
-                    }
-                    UnaryOperationKind::Plus => Some(operand_value),
+
+                if function_context.is_bb_unterminated() {
+                    function_context.builder.build_unconditional_branch(after_if_block);
                 }
+
+                function_context.builder.position_at_end(after_if_block);
             }
-            Ast::StatementList(StatementList(statements)) => {
-                for statement in statements {
-                    self.emit_instructions(statement, function_context, codegen);
-                }
-                None
+        }
+    }
+
+    fn emit_variable_reference(&self, variable_reference: &'ctx MidVariableReference, function_context: &CodeGenFunctionContext<'ctx>) -> (PointerValue<'ctx>, AnyTypeEnum<'ctx>) {
+        let data = &function_context.variables[variable_reference.variable_index];
+        (data.ptr, data.ty)
+    }
+
+    fn emit_target(&self, target: &'ctx MidTarget, function_context: &CodeGenFunctionContext<'ctx>) -> PointerValue<'ctx> {
+        match target {
+            MidTarget::Variable(variable_reference) => self.emit_variable_reference(variable_reference, function_context).0,
+        }
+    }
+
+    fn construct_argument_array(&self, args: &'ctx [MidExpression], function_context: &CodeGenFunctionContext<'ctx>) -> SmallVec<[BasicMetadataValueEnum<'ctx>; 4]> {
+        args.iter().map(|arg| self.emit_expression(arg, function_context).into()).collect::<SmallVec<[_; 4]>>()
+    }
+
+    fn emit_expression(&self, expression: &'ctx MidExpression, function_context: &CodeGenFunctionContext<'ctx>) -> BasicValueEnum<'ctx> {
+        match expression {
+            MidExpression::VariableRead(variable_reference) => {
+                let (pointer, ty) = self.emit_variable_reference(variable_reference, function_context);
+                function_context.builder.build_load(self.convert_to_basic_type(&ty), pointer, "var")
             }
-            Ast::BinaryOperation(BinaryOperation(lhs, operation, rhs)) => {
-                let lhs_value = self.emit_instructions_expect(lhs, function_context, codegen);
-                let rhs_value = self.emit_instructions_expect(rhs, function_context, codegen);
+            MidExpression::VariableReference(variable_reference) => self.emit_variable_reference(variable_reference, function_context).0.as_basic_value_enum(),
+            MidExpression::BinaryOperation(binary_operation) => {
+                let lhs_value = self.emit_expression(&binary_operation.lhs, function_context);
+                let rhs_value = self.emit_expression(&binary_operation.rhs, function_context);
                 // TODO: overflow handling, check NaN handling, division by zero checking, power of zero checking
 
-                if operation.is_comparison_op() {
+                if binary_operation.op.is_comparison_op() {
                     if lhs_value.is_float_value() {
-                        Some(
-                            function_context
-                                .builder
-                                .build_float_compare(operation.to_llvm_float_comparison(), lhs_value.into_float_value(), rhs_value.into_float_value(), "eq")
-                                .into(),
-                        )
+                        function_context
+                            .builder
+                            .build_float_compare(binary_operation.op.to_llvm_float_comparison(), lhs_value.into_float_value(), rhs_value.into_float_value(), "eq")
+                            .into()
                     } else {
-                        Some(
-                            function_context
-                                .builder
-                                .build_int_compare(operation.to_llvm_int_comparison(), lhs_value.into_int_value(), rhs_value.into_int_value(), "eq")
-                                .into(),
-                        )
+                        function_context
+                            .builder
+                            .build_int_compare(binary_operation.op.to_llvm_int_comparison(), lhs_value.into_int_value(), rhs_value.into_int_value(), "eq")
+                            .into()
                     }
                 } else {
-                    match *operation {
+                    match binary_operation.op {
                         BinaryOperationKind::Addition => {
                             if lhs_value.is_float_value() {
-                                Some(function_context.builder.build_float_add(lhs_value.into_float_value(), rhs_value.into_float_value(), "add").into())
+                                function_context.builder.build_float_add(lhs_value.into_float_value(), rhs_value.into_float_value(), "add").into()
                             } else {
-                                Some(function_context.builder.build_int_add(lhs_value.into_int_value(), rhs_value.into_int_value(), "add").into())
+                                function_context.builder.build_int_add(lhs_value.into_int_value(), rhs_value.into_int_value(), "add").into()
                             }
                         }
                         BinaryOperationKind::Subtraction => {
                             if lhs_value.is_float_value() {
-                                Some(function_context.builder.build_float_sub(lhs_value.into_float_value(), rhs_value.into_float_value(), "sub").into())
+                                function_context.builder.build_float_sub(lhs_value.into_float_value(), rhs_value.into_float_value(), "sub").into()
                             } else {
-                                Some(function_context.builder.build_int_sub(lhs_value.into_int_value(), rhs_value.into_int_value(), "sub").into())
+                                function_context.builder.build_int_sub(lhs_value.into_int_value(), rhs_value.into_int_value(), "sub").into()
                             }
                         }
                         BinaryOperationKind::Product => {
                             if lhs_value.is_float_value() {
-                                Some(function_context.builder.build_float_mul(lhs_value.into_float_value(), rhs_value.into_float_value(), "mul").into())
+                                function_context.builder.build_float_mul(lhs_value.into_float_value(), rhs_value.into_float_value(), "mul").into()
                             } else {
-                                Some(function_context.builder.build_int_mul(lhs_value.into_int_value(), rhs_value.into_int_value(), "mul").into())
+                                function_context.builder.build_int_mul(lhs_value.into_int_value(), rhs_value.into_int_value(), "mul").into()
                             }
                         }
                         BinaryOperationKind::DoubleDivision => {
                             assert!(lhs_value.is_float_value() && rhs_value.is_float_value());
-                            Some(function_context.builder.build_float_div(lhs_value.into_float_value(), rhs_value.into_float_value(), "div").into())
+                            function_context.builder.build_float_div(lhs_value.into_float_value(), rhs_value.into_float_value(), "div").into()
                         }
                         BinaryOperationKind::WholeDivision => {
                             if lhs_value.is_float_value() {
                                 let div_result = function_context.builder.build_float_div(lhs_value.into_float_value(), rhs_value.into_float_value(), "div");
                                 let floor_intrinsic = Intrinsic::find("llvm.floor").expect("floor intrinsic should exist");
                                 let floor_function = floor_intrinsic.get_declaration(&self.module, &[lhs_value.get_type()]).expect("floor function should exist");
-                                let floor_result = function_context
+                                function_context
                                     .builder
                                     .build_call(floor_function, &[div_result.into()], "floor")
                                     .try_as_basic_value()
-                                    .expect_left("value should exist");
-                                Some(floor_result)
+                                    .expect_left("value should exist")
                             } else {
                                 let lhs_value = lhs_value.into_int_value();
                                 let rhs_value = rhs_value.into_int_value();
@@ -442,140 +462,87 @@ impl<'ctx> CodeGenInner<'ctx> {
                                 let comparison_mod = function_context.builder.build_int_compare(IntPredicate::EQ, modulo, self.int_type.const_int(0, false), "mod_cmp");
                                 let both_conditions = function_context.builder.build_or(comparison_sign, comparison_mod, "both_cmp");
                                 let different_sign_result = function_context.builder.build_int_sub(division, self.int_type.const_int(1, true), "diff_sign_div");
-                                let result = function_context.builder.build_select(both_conditions, division, different_sign_result, "whole_div_int");
-                                Some(result)
+                                function_context.builder.build_select(both_conditions, division, different_sign_result, "whole_div_int")
                             }
                         }
                         BinaryOperationKind::Power => {
                             assert!(lhs_value.is_float_value() && rhs_value.is_float_value());
                             let pow_intrinsic = Intrinsic::find("llvm.pow").expect("pow intrinsic should exist");
                             let pow_function = pow_intrinsic.get_declaration(&self.module, &[lhs_value.get_type()]).expect("pow function should exist");
-                            let pow_result = function_context
+                            function_context
                                 .builder
                                 .build_call(pow_function, &[lhs_value.into(), rhs_value.into()], "pow")
                                 .try_as_basic_value()
-                                .expect_left("value should exist");
-                            Some(pow_result)
+                                .expect_left("value should exist")
                         }
                         _ => unreachable!(),
                     }
                 }
             }
-            Ast::IfStatement(IfStatement {
-                condition,
-                then_statements,
-                else_statements,
-            }) => {
-                let condition_value = self.emit_instructions_expect(condition, function_context, codegen);
-
-                let true_block = codegen.context.0.append_basic_block(function_context.function_value, "then");
-                let after_if_block = codegen.context.0.append_basic_block(function_context.function_value, "after_if");
-                let false_block = if else_statements.is_none() {
-                    after_if_block
+            MidExpression::UnaryNegateOperation(expression) => {
+                let operand_value = self.emit_expression(expression, function_context);
+                if operand_value.is_int_value() {
+                    // TODO: overflow?
+                    let result = function_context.builder.build_int_neg(operand_value.into_int_value(), "neg");
+                    result.into()
                 } else {
-                    codegen.context.0.append_basic_block(function_context.function_value, "else")
-                };
-
-                function_context.builder.build_conditional_branch(condition_value.into_int_value(), true_block, false_block);
-
-                function_context.builder.position_at_end(true_block);
-                self.emit_instructions(then_statements, function_context, codegen);
-                if function_context.is_bb_unterminated() {
-                    function_context.builder.build_unconditional_branch(after_if_block);
-                }
-
-                if let Some(else_statements) = else_statements {
-                    function_context.builder.position_at_end(false_block);
-                    self.emit_instructions(else_statements, function_context, codegen);
-                    if function_context.is_bb_unterminated() {
-                        function_context.builder.build_unconditional_branch(after_if_block);
-                    }
-                }
-
-                if function_context.is_bb_unterminated() {
-                    function_context.builder.build_unconditional_branch(after_if_block);
-                }
-
-                function_context.builder.position_at_end(after_if_block);
-
-                None
-            }
-            Ast::LiteralInt(LiteralInt(value)) => Some(self.int_type.const_int(*value as u64, false).into()),
-            Ast::LiteralBool(LiteralBool(bool)) => Some(self.bool_type.const_int(if *bool { 1 } else { 0 }, false).into()),
-            Ast::LiteralFloat(LiteralFloat(value)) => Some(self.double_type.const_float(*value).into()),
-            Ast::Assignment(Assignment(_, expression))
-            | Ast::Declaration(Declaration {
-                assignment: Assignment(_, expression),
-                binding: _,
-            }) => {
-                let handle = self.semantic_analyser.identifier_to_declaration(ast.0.as_handle());
-                let variable = function_context.variables.get(&handle).expect("variable should exist");
-                let expression_value = self.emit_instructions(expression, function_context, codegen).expect("expression should have a value");
-                function_context.builder.build_store(variable.ptr, expression_value);
-                None
-            }
-            Ast::ReturnStatement(ReturnStatement { value }) => {
-                if let Some(value) = value {
-                    let expression_value = self.emit_instructions(value, function_context, codegen).expect("expression should have a value");
-                    function_context.builder.build_return(Some(&expression_value));
-                } else {
-                    function_context.builder.build_return(None);
-                }
-                None
-            }
-            Ast::FunctionCall(FunctionCall { callee, args }) => {
-                let function_args = args
-                    .iter()
-                    .map(|arg| self.emit_instructions(arg, function_context, codegen).expect("argument should have a value").into())
-                    .collect::<SmallVec<[_; 4]>>();
-
-                let handle = self.semantic_analyser.try_identifier_to_declaration(callee.0.as_handle());
-
-                match handle.and_then(|handle| self.function_declaration_handle_to_function_value.get(handle)) {
-                    Some(function_value) => function_context
-                        .builder
-                        .build_direct_call(*function_value, function_args.as_slice(), "direct_call")
-                        .try_as_basic_value()
-                        .left(),
-                    None => {
-                        let callee_ty = self.semantic_analyser.indirect_call_function_type(callee.0.as_handle()).expect("callee should have a type");
-                        let llvm_callee_ty = self.get_llvm_type_raw(&Type::Function(callee_ty.clone())); // TODO: can be done more efficiently
-                        let function_value = self.emit_instructions(callee, function_context, codegen).expect("callee should have a value");
-                        function_context
-                            .builder
-                            .build_indirect_call(llvm_callee_ty.into_function_type(), function_value.into_pointer_value(), function_args.as_slice(), "indirect_call")
-                            .try_as_basic_value()
-                            .left()
-                    }
+                    let result = function_context.builder.build_float_neg(operand_value.into_float_value(), "neg");
+                    result.into()
                 }
             }
-            Ast::MemberAccess(MemberAccess { lhs, rhs: _ }) => {
-                let object = self.emit_instructions_expect(lhs, function_context, codegen);
-
-                let meta_data = self.semantic_analyser.member_access_meta_data(ast.0.as_handle());
-                let pointee_type = self.get_llvm_type(&meta_data.object_type);
-                let member_type = self.get_llvm_type(&meta_data.member_type);
-
-                let gep = { function_context.builder.build_struct_gep(pointee_type, object.into_pointer_value(), meta_data.index, "gep").unwrap() };
-                if meta_data.member_type.is_structure() {
-                    Some(gep.as_basic_value_enum())
-                } else {
-                    Some(function_context.builder.build_load(member_type, gep, "gep_load").as_basic_value_enum())
-                }
+            MidExpression::LiteralInt(value) => self.int_type.const_int(*value as u64, false).into(),
+            MidExpression::LiteralBool(bool) => self.bool_type.const_int(if *bool { 1 } else { 0 }, false).into(),
+            MidExpression::LiteralFloat(value) => self.double_type.const_float(*value).into(),
+            MidExpression::BuiltinSiToFp(expression) => {
+                let value = self.emit_expression(expression, function_context);
+                function_context
+                    .builder
+                    .build_signed_int_to_float(value.into_int_value(), self.double_type, "conv")
+                    .as_basic_value_enum()
             }
-            Ast::BuiltinSiToFp(handle) => {
-                let variable = &function_context.variables[handle];
-                let load = function_context.builder.build_load(self.convert_to_basic_type(&variable.ty), variable.ptr, "load");
-                Some(
+            MidExpression::DirectCall(direct_call) => {
+                // TODO: fail on void?
+                let function_args = self.construct_argument_array(&direct_call.args, function_context);
+                let function_value = self.function_declaration_handle_to_function_value[&direct_call.declaration_handle_of_target];
+
+                function_context
+                    .builder
+                    .build_direct_call(function_value, function_args.as_slice(), "direct_call")
+                    .try_as_basic_value()
+                    .left()
+                    .expect("valid expression")
+            }
+            MidExpression::IndirectCall(indirect_call) => {
+                // TODO: fail on void?
+                let function_args = self.construct_argument_array(&indirect_call.args, function_context);
+                let llvm_callee_ty = self.get_llvm_type_raw(&Type::Function(indirect_call.ty.clone()));
+                let function_value = self.emit_expression(&indirect_call.expression, function_context);
+
+                function_context
+                    .builder
+                    .build_indirect_call(llvm_callee_ty.into_function_type(), function_value.into_pointer_value(), function_args.as_slice(), "indirect_call")
+                    .try_as_basic_value()
+                    .left()
+                    .expect("valid expression")
+            }
+            MidExpression::FunctionReference(handle) => {
+                let function_value = self.function_declaration_handle_to_function_value[&handle];
+                BasicValueEnum::PointerValue(function_value.as_global_value().as_pointer_value())
+            }
+            MidExpression::MemberReference(member_reference) => {
+                let lhs = self.emit_expression(&member_reference.of, function_context);
+                let of_type = self.get_llvm_type(member_reference.of_type.dereference());
+                BasicValueEnum::PointerValue(
                     function_context
                         .builder
-                        .build_signed_int_to_float(load.into_int_value(), self.double_type, "conv")
-                        .as_basic_value_enum(),
+                        .build_struct_gep(of_type, lhs.into_pointer_value(), member_reference.index, "gep")
+                        .expect("valid expression"),
                 )
             }
-            _ => {
-                println!("Unhandled AST: {:?}", ast.0);
-                None
+            MidExpression::PointerLoad(pointer_load) => {
+                let of = self.emit_expression(&pointer_load.of, function_context);
+                let of_type = self.get_llvm_type(&pointer_load.of_type);
+                function_context.builder.build_load(of_type, of.into_pointer_value(), "ptr_load").as_basic_value_enum()
             }
         }
     }

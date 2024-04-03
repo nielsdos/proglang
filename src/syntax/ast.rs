@@ -3,7 +3,7 @@ use crate::types::function_info::ArgumentInfo;
 use crate::types::type_system::Type;
 use crate::util::handle::Handle;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum BinaryOperationKind {
     Addition,
     Subtraction,

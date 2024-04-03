@@ -325,11 +325,10 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
             return Type::Error;
         }
 
-        // Automatic dereferencing on member access
-        let object_type = object_type.dereference();
         let rhs_identifier = &node.rhs.0;
 
-        let member_info = match object_type {
+        // Automatic dereferencing on member access
+        let member_info = match object_type.dereference() {
             Type::UserType(name) => self.class_map.get(name).expect("TODO: handle does not exist error").field(rhs_identifier.0),
             ty => {
                 self.semantic_error_list.report_error(node.rhs.1, format!("type '{}' does not support member access", ty));

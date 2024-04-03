@@ -31,13 +31,14 @@ impl<'f, 'ast> FunctionCollectorPass<'f, 'ast> {
         let float = builtins.get_builtin_float();
         let declaration_handle = float.name() as *const _ as *const ();
 
-        self.seen_function_names.insert(float.name(), (0..0).into());
+        // TODO
+        /*self.seen_function_names.insert(float.name(), (0..0).into());
         let mut function_info = FunctionInfo::new(float.name(), float.body(), float.args(), float.return_type().clone(), declaration_handle);
         function_info.set_always_inline(true);
         for arg in float.args() {
             let _ = function_info.update_variable_type(arg.0.as_handle(), arg.0.ty().clone());
         }
-        self.function_map.insert(declaration_handle, function_info);
+        self.function_map.insert(declaration_handle, function_info);*/
     }
 }
 

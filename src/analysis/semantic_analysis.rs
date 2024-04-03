@@ -14,7 +14,6 @@ use crate::types::type_system::{FunctionType, Type};
 use crate::util::handle::Handle;
 use std::collections::{hash_map::Values, HashMap};
 use std::rc::Rc;
-use std::vec::IntoIter;
 
 pub type FunctionMap<'ast> = HashMap<Handle, FunctionInfo<'ast>>;
 pub type ClassMap<'ast> = HashMap<&'ast str, ClassInfo<'ast>>;
@@ -36,6 +35,7 @@ pub struct MemberAccessMetadata<'ast> {
     pub index: u32,
 }
 
+// TODO: what can we throw away / simplify from this??
 impl<'ast> SemanticAnalyser<'ast> {
     pub fn new(ast: &'ast Spanned<Ast<'ast>>, builtins: &'ast Builtins<'ast>) -> Self {
         Self {
@@ -98,27 +98,16 @@ impl<'ast> SemanticAnalyser<'ast> {
         &self.errors
     }
 
-    pub fn class_map_iter(&self) -> Values<'_, &'ast str, ClassInfo<'ast>> {
-        // TODO: how long do we need this class_map afterwards?
-        self.class_map.values()
+    pub fn class_map(&self) -> &ClassMap<'ast> {
+        &self.class_map
     }
 
     pub fn function_list_iter(&self) -> Values<'_, Handle, FunctionInfo<'_>> {
         self.function_map.values()
     }
 
-    pub fn function_list_sorted_iter(&self) -> IntoIter<&'_ FunctionInfo<'ast>> {
-        let mut collection = self.function_map.values().collect::<Vec<_>>();
-        collection.sort_by(|a, b| a.name().cmp(b.name()));
-        collection.into_iter()
-    }
-
     pub fn identifier_to_declaration(&self, handle: Handle) -> Handle {
         *self.scope_reference_map.references.get(&handle).expect("declaration should exist")
-    }
-
-    pub fn try_identifier_to_declaration(&self, handle: Handle) -> Option<&Handle> {
-        self.scope_reference_map.references.get(&handle)
     }
 
     pub fn indirect_call_function_type(&self, handle: Handle) -> Option<&Rc<FunctionType>> {
