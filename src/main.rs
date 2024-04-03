@@ -86,15 +86,15 @@ fn main() -> ExitCode {
             }
         }
 
-        let mut mid_functions = Vec::new();
-        for func in semantic_analyser.function_list_iter() {
-            let construction = Construction::new(&semantic_analyser, func);
-            let ir = construction.construct_from_function_declaration();
-            //println!("{:#?}", ir);
-            mid_functions.push(ir);
-        }
-
         if semantic_analyser.errors().is_empty() {
+            let mut mid_functions = Vec::new();
+            for func in semantic_analyser.function_list_iter() {
+                let construction = Construction::new(&semantic_analyser, func);
+                let ir = construction.construct_from_function_declaration();
+                //println!("{:#?}", ir);
+                mid_functions.push(ir);
+            }
+
             // TODO: would be great to free up memory if we could drop semantic_analyser before full-on codegen
             let codegen_context = CodeGenContext::default();
             let mut codegen = CodeGen::new(&codegen_context, &mid_functions, args.optimization_level);
