@@ -29,7 +29,7 @@ impl<'f, 'ast> FunctionCollectorPass<'f, 'ast> {
 
     pub fn register_internal_functions(&mut self, builtins: &'ast Builtins<'ast>) {
         let float = builtins.get_builtin_float();
-        let declaration_handle = float.name() as *const _ as *const ();
+        let _declaration_handle = float.name() as *const _ as *const ();
 
         // TODO
         /*self.seen_function_names.insert(float.name(), (0..0).into());

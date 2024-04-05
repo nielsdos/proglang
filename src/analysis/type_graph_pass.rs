@@ -50,7 +50,7 @@ impl<'c> TypeGraphPass<'c> {
                 span,
                 format!(
                     "This field will cause a struct cycle, which leads to an infinitely nested type. Break the cycle using a class instead of a struct type. Checked: {}",
-                    self.recursion_stack_vec().join(", ").to_string()
+                    self.recursion_stack_vec().join(", ")
                 ),
             );
         }
@@ -59,16 +59,15 @@ impl<'c> TypeGraphPass<'c> {
 
     fn visit(&mut self, info: &'c ClassInfo) {
         for field in info.fields_iter() {
-            match field.ty() {
-                Type::UserType(name) => match self.class_map.get(name) {
+            if let Type::UserType(name) = field.ty() {
+                match self.class_map.get(name) {
                     None => {
                         self.semantic_error_list.report_error(field.span(), format!("The type '{}' was not found", name));
                     }
                     Some(info) => {
                         self.visit_aux(name, info, field.span());
                     }
-                },
-                _ => {}
+                }
             }
         }
     }

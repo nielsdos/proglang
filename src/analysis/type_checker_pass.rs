@@ -79,13 +79,10 @@ impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
     }
 
     fn report_type_existence(&mut self, ty: &'ast Type<'ast>, span: Span) {
-        match ty.dereference() {
-            Type::UserType(name) => {
-                if !self.class_map.contains_key(name) {
-                    self.semantic_error_list.report_error(span, format!("Type '{}' was not found", name));
-                }
+        if let Type::UserType(name) = ty.dereference() {
+            if !self.class_map.contains_key(name) {
+                self.semantic_error_list.report_error(span, format!("Type '{}' was not found", name));
             }
-            _ => {}
         }
     }
 }
