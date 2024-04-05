@@ -5,6 +5,7 @@ use crate::analysis::scope_resolution_pass::{ScopeReferenceMap, ScopeResolutionP
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::{SemanticError, SemanticErrorList};
 use crate::analysis::type_checker_pass::TypeCheckerPass;
+use crate::analysis::type_graph_pass::TypeGraphPass;
 use crate::builtin::Builtins;
 use crate::syntax::ast::Ast;
 use crate::syntax::span::Spanned;
@@ -14,7 +15,6 @@ use crate::types::type_system::{FunctionType, Type};
 use crate::util::handle::Handle;
 use std::collections::{hash_map::Values, HashMap};
 use std::rc::Rc;
-use crate::analysis::type_graph_pass::TypeGraphPass;
 
 pub type FunctionMap<'ast> = HashMap<Handle, FunctionInfo<'ast>>;
 pub type ClassMap<'ast> = HashMap<&'ast str, ClassInfo<'ast>>;

@@ -48,7 +48,10 @@ impl<'c> TypeGraphPass<'c> {
         } else if self.recursion_stack.contains(name) {
             self.semantic_error_list.report_error(
                 span,
-                format!("This field will cause a struct cycle, which leads to an infinitely nested type. Break the cycle using a class instead of a struct type. Checked: {}", self.recursion_stack_vec().join(", ").to_string()),
+                format!(
+                    "This field will cause a struct cycle, which leads to an infinitely nested type. Break the cycle using a class instead of a struct type. Checked: {}",
+                    self.recursion_stack_vec().join(", ").to_string()
+                ),
             );
         }
         self.recursion_stack.remove(name);
