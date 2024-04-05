@@ -14,6 +14,7 @@ use crate::types::type_system::{FunctionType, Type};
 use crate::util::handle::Handle;
 use std::collections::{hash_map::Values, HashMap};
 use std::rc::Rc;
+use crate::analysis::type_graph_pass::TypeGraphPass;
 
 pub type FunctionMap<'ast> = HashMap<Handle, FunctionInfo<'ast>>;
 pub type ClassMap<'ast> = HashMap<&'ast str, ClassInfo<'ast>>;
@@ -58,6 +59,11 @@ impl<'ast> SemanticAnalyser<'ast> {
             class_collector.visit(self.ast);
             class_collector.into_class_map()
         };
+
+        {
+            let mut type_graph = TypeGraphPass::new(&class_map, &mut semantic_error_list);
+            type_graph.check();
+        }
 
         self.function_map = {
             let mut function_collector = FunctionCollectorPass::new(&mut semantic_error_list);

@@ -77,6 +77,17 @@ impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
             }
         }
     }
+
+    fn report_type_existence(&mut self, ty: &'ast Type<'ast>, span: Span) {
+        match ty.dereference() {
+            Type::UserType(name) => {
+                if !self.class_map.contains_key(name) {
+                    self.semantic_error_list.report_error(span, format!("Type '{}' was not found", name));
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 'f> {
@@ -226,12 +237,16 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
 
     fn visit_function_declaration(&mut self, handle: Handle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> Type<'ast> {
         self.enter_function_scope(handle);
+        for arg in &node.args {
+            self.report_type_existence(arg.0.ty(), arg.1);
+        }
         let scope = self.current_function_scope_mut().expect("just entered a function");
         for arg in &node.args {
             scope
                 .update_variable_type(arg.0.as_handle(), arg.0.ty().clone())
                 .expect("cannot fail because the variable did not exist yet");
         }
+        self.report_type_existence(&node.return_type, /* TODO */ (0..0).into());
         for arg in &node.args {
             self.binding_types.insert(arg.0.as_handle(), arg.0.binding());
         }
@@ -329,7 +344,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
 
         // Automatic dereferencing on member access
         let member_info = match object_type.dereference() {
-            Type::UserType(name) => self.class_map.get(name).expect("TODO: handle does not exist error").field(rhs_identifier.0),
+            Type::UserType(name) => self.class_map.get(name).expect("must exist because of type graph pass").field(rhs_identifier.0),
             ty => {
                 self.semantic_error_list.report_error(node.rhs.1, format!("type '{}' does not support member access", ty));
                 return Type::Error;
