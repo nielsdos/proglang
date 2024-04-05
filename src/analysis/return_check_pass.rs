@@ -26,7 +26,7 @@ impl<'f, 'ast> SemanticAnalysisPass<'ast, bool> for ReturnCheckPass<'f> {
     }
 
     fn visit_function_declaration(&mut self, _: Handle, node: &'ast FunctionDeclaration<'ast>, span: Span) -> bool {
-        if node.return_type == Type::Void {
+        if node.return_type.0 == Type::Void {
             return false;
         }
 

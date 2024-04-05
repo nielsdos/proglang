@@ -277,7 +277,7 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
                 .collect::<Vec<_>>(),
         )
         .then_ignore(just(Token::RightParen))
-        .then(return_type.or_not())
+        .then(return_type.map_with(|ty, extra| (ty, extra.span())).or_not())
         .then_ignore(just(Token::BlockStart))
         .then(parse_statement_list())
         .then_ignore(just(Token::BlockEnd))
@@ -286,7 +286,7 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
             let declaration = FunctionDeclaration {
                 name: fn_name,
                 statements: Box::new(statements),
-                return_type: return_type.unwrap_or(Type::Void),
+                return_type: return_type.unwrap_or((Type::Void, (0..0).into())),
                 args,
             };
             (Ast::FunctionDeclaration(declaration), span.into())

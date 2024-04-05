@@ -57,7 +57,7 @@ impl<'f, 'ast> SemanticAnalysisPass<'ast, ()> for FunctionCollectorPass<'f, 'ast
             None => {
                 self.seen_function_names.insert(node.name, span);
                 self.function_map
-                    .insert(handle, FunctionInfo::new(node.name, &node.statements, &node.args, node.return_type.clone(), handle));
+                    .insert(handle, FunctionInfo::new(node.name, &node.statements, &node.args, node.return_type.0.clone(), handle));
             }
         }
     }

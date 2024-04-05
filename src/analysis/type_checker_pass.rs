@@ -246,7 +246,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
                 .update_variable_type(arg.0.as_handle(), arg.0.ty().clone())
                 .expect("cannot fail because the variable did not exist yet");
         }
-        self.report_type_existence(&node.return_type, /* TODO */ (0..0).into());
+        self.report_type_existence(&node.return_type.0, node.return_type.1);
         for arg in &node.args {
             self.binding_types.insert(arg.0.as_handle(), arg.0.binding());
         }

@@ -79,7 +79,7 @@ pub struct StatementList<'src>(pub Vec<Spanned<Ast<'src>>>);
 pub struct FunctionDeclaration<'src> {
     pub name: &'src str,
     pub statements: Box<Spanned<Ast<'src>>>,
-    pub return_type: Type<'src>,
+    pub return_type: Spanned<Type<'src>>,
     pub args: Vec<Spanned<ArgumentInfo<'src>>>,
 }
 #[derive(Debug)]
