@@ -1,8 +1,8 @@
 // Based on the sample code from https://github.com/zesterer/chumsky/blob/main/examples/nano_rust.rs
 
 use crate::syntax::ast::{
-    Assignment, Ast, BinaryOperation, BinaryOperationKind, BindingType, Class, ClassField, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat,
-    LiteralInt, MemberAccess, ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind,
+    Assignment, Ast, BinaryOperation, BinaryOperationKind, BindingType, Class, ClassField, Declaration, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool,
+    LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind,
 };
 use crate::syntax::lexer::lexer;
 use crate::syntax::span::{Span, Spanned};
@@ -54,15 +54,24 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
         let call_expression = atom_no_call
             .clone()
             .then(
-                expression
-                    .clone()
-                    .map(|expr: (Ast<'src>, _)| expr)
+                // (optional) Named argument part
+                identifier_raw
+                    .then_ignore(just(Token::Operator('=')))
+                    .map_with(|identifier, extra| (identifier, extra.span()))
+                    .or_not()
+                    // Argument value part
+                    .then(
+                        expression.clone().map(|expr: (Ast<'src>, _)| expr),
+                    )
                     .separated_by(just(Token::Comma))
                     .allow_trailing()
                     .collect::<Vec<_>>()
                     .delimited_by(just(Token::LeftParen), just(Token::RightParen)),
             )
-            .map(|(identifier, args)| Ast::FunctionCall(FunctionCall { callee: Box::new(identifier), args }));
+            .map(|(callee, args): (Spanned<Ast<'src>>, Vec<(Option<Spanned<Identifier<'src>>>, Spanned<Ast<'src>>)>)| {
+                let args = args.into_iter().map(|(name, value)| FunctionCallArg { name, value }).collect::<Vec<_>>();
+                Ast::FunctionCall(FunctionCall { callee: Box::new(callee), args })
+            });
 
         let atom = call_expression.map_with(|ast, extra| (ast, extra.span())).or(atom_no_call);
 

@@ -93,9 +93,14 @@ pub struct ReturnStatement<'src> {
     pub value: Option<Box<Spanned<Ast<'src>>>>,
 }
 #[derive(Debug)]
+pub struct FunctionCallArg<'ctx> {
+    pub name: Option<Spanned<Identifier<'ctx>>>,
+    pub value: Spanned<Ast<'ctx>>,
+}
+#[derive(Debug)]
 pub struct FunctionCall<'ctx> {
     pub callee: Box<Spanned<Ast<'ctx>>>,
-    pub args: Vec<Spanned<Ast<'ctx>>>,
+    pub args: Vec<FunctionCallArg<'ctx>>,
 }
 #[derive(Debug)]
 pub struct MemberAccess<'src> {

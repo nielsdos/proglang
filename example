@@ -1,17 +1,5 @@
-class Foo:
-    int x
-    int y
-    &Foo f # TODO: make sure that infinite types are caught
+fn test(int a, int b) -> int:
+    return a-b
 
-class B:
-    &Foo foo1
-    Foo foo2
-
-fn test1(Foo f) -> int:
-    return f.x
-
-fn test2(&Foo f) -> int:
-    return f.x
-
-fn test3(&B b) -> int:
-    return b.foo1.f.f.x + b.foo2.y
+fn caller() -> int:
+    return test(b=1, a = 3)

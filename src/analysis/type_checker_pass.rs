@@ -321,10 +321,10 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
         }
 
         for (arg, expected_type) in node.args.iter().zip(callee_type.arg_types.iter()) {
-            let arg_type = self.visit(arg);
+            let arg_type = self.visit(&arg.value);
             if arg_type != *expected_type {
                 self.semantic_error_list
-                    .report_error(arg.1, format!("expected an argument of type '{}', but this argument has type '{}'", expected_type, arg_type));
+                    .report_error(arg.value.1, format!("expected an argument of type '{}', but this argument has type '{}'", expected_type, arg_type));
             }
         }
 

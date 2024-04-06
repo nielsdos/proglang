@@ -96,7 +96,7 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
     fn visit_function_call(&mut self, _: Handle, node: &'ast FunctionCall<'ast>, _: Span) -> T {
         self.visit(&node.callee);
         for arg in &node.args {
-            self.visit(arg);
+            self.visit(&arg.value);
         }
         T::default()
     }

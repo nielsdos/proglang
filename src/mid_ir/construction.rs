@@ -62,7 +62,7 @@ impl<'ctx> Construction<'ctx> {
                 }
             }
             Ast::FunctionCall(function_call) => {
-                let args = function_call.args.iter().map(|expression| self.construct_from_expression(expression)).collect::<Vec<_>>();
+                let args = function_call.args.iter().map(|expression| self.construct_from_expression(&expression.value)).collect::<Vec<_>>();
                 match self.construct_from_expression(&function_call.callee) {
                     MidExpression::FunctionReference(handle) => MidExpression::DirectCall(MidDirectCall {
                         declaration_handle_of_target: handle,
