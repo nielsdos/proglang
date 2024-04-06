@@ -5,6 +5,7 @@ use crate::syntax::ast::{
     LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind,
 };
 use crate::syntax::lexer::lexer;
+use crate::syntax::span::compute_span_over_slice;
 use crate::syntax::span::{Span, Spanned};
 use crate::syntax::token::{Token, TokenTree};
 use crate::types::function_info::ArgumentInfo;
@@ -23,14 +24,6 @@ pub struct ParserOptions {
 type ParserInput<'tokens, 'src> = SpannedInput<Token<'src>, Span, BoxedStream<'tokens, Spanned<Token<'src>>>>;
 
 type ParserExtra<'tokens, 'src> = extra::Err<Rich<'tokens, Token<'src>, Span>>;
-
-fn compute_span_over_slice(slice: &[Spanned<Ast>]) -> Span {
-    if slice.is_empty() {
-        SimpleSpan::new(0, 0)
-    } else {
-        (slice[0].1.start..slice[slice.len() - 1].1.end).into()
-    }
-}
 
 fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>> + Clone {
     recursive(|expression| {
@@ -56,13 +49,11 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
             .then(
                 // (optional) Named argument part
                 identifier_raw
-                    .then_ignore(just(Token::Operator('=')))
                     .map_with(|identifier, extra| (identifier, extra.span()))
+                    .then_ignore(just(Token::Operator('=')))
                     .or_not()
                     // Argument value part
-                    .then(
-                        expression.clone().map(|expr: (Ast<'src>, _)| expr),
-                    )
+                    .then(expression.clone().map(|expr: (Ast<'src>, _)| expr))
                     .separated_by(just(Token::Comma))
                     .allow_trailing()
                     .collect::<Vec<_>>()

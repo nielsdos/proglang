@@ -18,6 +18,7 @@ use std::rc::Rc;
 
 pub type FunctionMap<'ast> = HashMap<Handle, FunctionInfo<'ast>>;
 pub type ClassMap<'ast> = HashMap<&'ast str, ClassInfo<'ast>>;
+pub type CallArgumentOrder<'ast> = HashMap<Handle, Vec<Option<&'ast Spanned<Ast<'ast>>>>>;
 
 pub struct SemanticAnalyser<'ast> {
     ast: &'ast Spanned<Ast<'ast>>,
@@ -27,6 +28,7 @@ pub struct SemanticAnalyser<'ast> {
     class_map: ClassMap<'ast>,
     indirect_call_function_types: HashMap<Handle, Rc<FunctionType<'ast>>>,
     member_access_meta_data: HashMap<Handle, MemberAccessMetadata<'ast>>,
+    call_argument_order: CallArgumentOrder<'ast>,
     errors: Vec<SemanticError>,
 }
 
@@ -47,6 +49,7 @@ impl<'ast> SemanticAnalyser<'ast> {
             class_map: Default::default(),
             indirect_call_function_types: Default::default(),
             member_access_meta_data: Default::default(),
+            call_argument_order: Default::default(),
             errors: vec![],
         }
     }
@@ -84,10 +87,10 @@ impl<'ast> SemanticAnalyser<'ast> {
             return;
         }
 
-        let (indirect_call_function_types, member_access_meta_data) = {
+        let (indirect_call_function_types, member_access_meta_data, call_argument_order) = {
             let mut type_checker = TypeCheckerPass::new(&mut self.function_map, &scope_reference_map, &class_map, &mut semantic_error_list);
             type_checker.visit(self.ast);
-            (type_checker.indirect_call_function_types, type_checker.member_access_meta_data)
+            (type_checker.indirect_call_function_types, type_checker.member_access_meta_data, type_checker.call_argument_order)
         };
 
         let mut return_check_pass = ReturnCheckPass::new(&mut semantic_error_list);
@@ -96,6 +99,7 @@ impl<'ast> SemanticAnalyser<'ast> {
         self.class_map = class_map;
         self.scope_reference_map = scope_reference_map;
         self.member_access_meta_data = member_access_meta_data;
+        self.call_argument_order = call_argument_order;
         self.indirect_call_function_types = indirect_call_function_types;
         self.errors = semantic_error_list.into_vec();
     }
@@ -122,5 +126,9 @@ impl<'ast> SemanticAnalyser<'ast> {
 
     pub fn member_access_meta_data(&self, handle: Handle) -> &MemberAccessMetadata<'ast> {
         &self.member_access_meta_data[&handle]
+    }
+
+    pub fn call_argument_order(&self, handle: Handle) -> Option<&[Option<&'ast Spanned<Ast<'ast>>>]> {
+        self.call_argument_order.get(&handle).map(|v| v.as_slice())
     }
 }

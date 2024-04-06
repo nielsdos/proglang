@@ -7,7 +7,7 @@ use crate::syntax::ast::{
     StatementList, UnaryOperation,
 };
 use crate::syntax::ast::{Ast, Declaration};
-use crate::syntax::span::Span;
+use crate::syntax::span::{combine_span, Span, Spanned};
 use crate::types::function_info::{FunctionInfo, VariableUpdateError};
 use crate::types::type_system::{FunctionType, Type};
 use crate::util::handle::Handle;
@@ -22,6 +22,7 @@ pub(crate) struct TypeCheckerPass<'ast, 'f> {
     pub(crate) member_access_meta_data: HashMap<Handle, MemberAccessMetadata<'ast>>,
     pub(crate) binding_types: HashMap<Handle, BindingType>,
     pub(crate) indirect_call_function_types: HashMap<Handle, Rc<FunctionType<'ast>>>,
+    pub(crate) call_argument_order: HashMap<Handle, Vec<Option<&'ast Spanned<Ast<'ast>>>>>,
     pub(crate) semantic_error_list: &'f mut SemanticErrorList,
 }
 
@@ -40,6 +41,7 @@ impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
             member_access_meta_data: Default::default(),
             binding_types: Default::default(),
             indirect_call_function_types: Default::default(),
+            call_argument_order: Default::default(),
             semantic_error_list,
         }
     }
@@ -81,7 +83,7 @@ impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
     fn report_type_existence(&mut self, ty: &'ast Type<'ast>, span: Span) {
         if let Type::UserType(name) = ty.dereference() {
             if !self.class_map.contains_key(name) {
-                self.semantic_error_list.report_error(span, format!("Type '{}' was not found", name));
+                self.semantic_error_list.report_error(span, format!("type '{}' was not found", name));
             }
         }
     }
@@ -320,11 +322,84 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
             );
         }
 
-        for (arg, expected_type) in node.args.iter().zip(callee_type.arg_types.iter()) {
-            let arg_type = self.visit(&arg.value);
-            if arg_type != *expected_type {
-                self.semantic_error_list
-                    .report_error(arg.value.1, format!("expected an argument of type '{}', but this argument has type '{}'", expected_type, arg_type));
+        let no_named_args = node.args.iter().all(|arg| arg.name.is_none());
+        if !no_named_args {
+            let handle = self.map_ast_handle_to_declarator(node.callee.0.as_handle());
+            if let Some(function_info) = self.function_map.get(&handle) {
+                // Check that all positional arguments come before named arguments
+                let mut first_named_arg_span = None;
+                let mut error = false;
+                for arg in node.args.iter() {
+                    if arg.name.is_none() {
+                        if let Some(first_named_arg_span) = first_named_arg_span {
+                            self.semantic_error_list.report_error_with_note(
+                                arg.value.1,
+                                "positional arguments must not come after named arguments".to_string(),
+                                first_named_arg_span,
+                                "first named argument passed here".to_string(),
+                            );
+                            error = true;
+                        }
+                    } else if first_named_arg_span.is_none() {
+                        first_named_arg_span = Some(combine_span(arg.name.as_ref().unwrap().1, arg.value.1));
+                    }
+                }
+
+                // Put the arguments in the right order
+                if !error {
+                    let mut ordered_args = Vec::with_capacity(node.args.len());
+                    for _ in 0..node.args.len() {
+                        ordered_args.push(None);
+                    }
+                    for (index, arg) in node.args.iter().enumerate() {
+                        if let Some(name) = &arg.name {
+                            if let Some(matched_arg) = function_info.args().iter().position(|arg| arg.0.name() == name.0 .0) {
+                                if ordered_args[matched_arg].is_none() {
+                                    ordered_args[matched_arg] = Some(&arg.value);
+                                } else {
+                                    self.semantic_error_list
+                                        .report_error(name.1, format!("argument '{}' already passed", name.0 .0));
+                                }
+                            } else {
+                                self.semantic_error_list
+                                    .report_error(name.1, format!("argument '{}' not found in function '{}'", name.0 .0, function_info.name()));
+                            }
+                        } else {
+                            ordered_args[index] = Some(&arg.value);
+                        }
+                    }
+
+                    for (arg, expected_type) in ordered_args.iter().zip(callee_type.arg_types.iter()) {
+                        if let Some(arg) = arg {
+                            let arg_type = self.visit(arg);
+                            if arg_type != *expected_type {
+                                self.semantic_error_list
+                                    .report_error(arg.1, format!("expected an argument of type '{}', but this argument has type '{}'", expected_type, arg_type));
+                            }
+                        }
+                    }
+
+                    self.call_argument_order.insert(handle, ordered_args);
+                } else {
+                    // It will be impossible to resolve the order, but we can still type check the argument expressions
+                    for arg in node.args.iter() {
+                        self.visit(&arg.value);
+                    }
+                }
+            } else {
+                self.semantic_error_list.report_error(span, "named arguments are not supported in indirect calls".to_string());
+                // It will be impossible to resolve the order, but we can still type check the argument expressions
+                for arg in node.args.iter() {
+                    self.visit(&arg.value);
+                }
+            }
+        } else {
+            for (arg, expected_type) in node.args.iter().zip(callee_type.arg_types.iter()) {
+                let arg_type = self.visit(&arg.value);
+                if arg_type != *expected_type {
+                    self.semantic_error_list
+                        .report_error(arg.value.1, format!("expected an argument of type '{}', but this argument has type '{}'", expected_type, arg_type));
+                }
             }
         }
 

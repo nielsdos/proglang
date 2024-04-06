@@ -3,7 +3,7 @@ use crate::mid_ir::ir::{
     MidAssignment, MidBinaryOperation, MidDirectCall, MidExpression, MidFunction, MidIf, MidIndirectCall, MidMemberReference, MidPointerLoad, MidReturn, MidStatement, MidStatementList, MidTarget,
     MidVariableReference,
 };
-use crate::syntax::ast::{Assignment, Ast, Declaration, LiteralBool, LiteralFloat, LiteralInt, StatementList, UnaryOperationKind};
+use crate::syntax::ast::{Assignment, Ast, Declaration, FunctionCall, LiteralBool, LiteralFloat, LiteralInt, StatementList, UnaryOperationKind};
 use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
 use crate::types::type_system::Type;
@@ -39,6 +39,10 @@ impl<'ctx> Construction<'ctx> {
         }
     }
 
+    fn construct_args_from_function_call_node(&self, function_call: &'ctx FunctionCall<'ctx>) -> Vec<MidExpression<'ctx>> {
+        function_call.args.iter().map(|expression| self.construct_from_expression(&expression.value)).collect::<Vec<_>>()
+    }
+
     fn construct_from_expression(&self, expression: &'ctx Spanned<Ast>) -> MidExpression<'ctx> {
         match &expression.0 {
             Ast::LiteralBool(LiteralBool(value)) => MidExpression::LiteralBool(*value),
@@ -62,21 +66,31 @@ impl<'ctx> Construction<'ctx> {
                 }
             }
             Ast::FunctionCall(function_call) => {
-                let args = function_call.args.iter().map(|expression| self.construct_from_expression(&expression.value)).collect::<Vec<_>>();
                 match self.construct_from_expression(&function_call.callee) {
-                    MidExpression::FunctionReference(handle) => MidExpression::DirectCall(MidDirectCall {
-                        declaration_handle_of_target: handle,
-                        args,
-                    }),
-                    other => MidExpression::IndirectCall(MidIndirectCall {
-                        expression: Box::new(other),
-                        args,
-                        ty: self
-                            .semantic_analyser
-                            .indirect_call_function_type(function_call.callee.0.as_handle())
-                            .expect("verified in type checker")
-                            .clone(),
-                    }),
+                    MidExpression::FunctionReference(handle) => {
+                        let args = if let Some(order) = self.semantic_analyser.call_argument_order(handle) {
+                            order.iter().map(|arg| self.construct_from_expression(&arg.as_ref().unwrap())).collect::<Vec<_>>()
+                        } else {
+                            self.construct_args_from_function_call_node(function_call)
+                        };
+
+                        MidExpression::DirectCall(MidDirectCall {
+                            declaration_handle_of_target: handle,
+                            args,
+                        })
+                    },
+                    other => {
+                        let args = self.construct_args_from_function_call_node(function_call);
+                        MidExpression::IndirectCall(MidIndirectCall {
+                            expression: Box::new(other),
+                            args,
+                            ty: self
+                                .semantic_analyser
+                                .indirect_call_function_type(function_call.callee.0.as_handle())
+                                .expect("verified in type checker")
+                                .clone(),
+                        })
+                    },
                 }
             }
             Ast::MemberAccess(member_access) => {
