@@ -263,6 +263,17 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
         self.report_type_existence(&node.return_type.0, node.return_type.1);
         for arg in &node.args {
             self.binding_types.insert(arg.0.as_handle(), arg.0.binding());
+
+            // Type check default value for argument
+            if let Some(default_value) = arg.0.default_value() {
+                let default_type = self.visit(default_value);
+                if default_type != *arg.0.ty() {
+                    self.semantic_error_list.report_error(
+                        arg.1,
+                        format!("default value of argument '{}' has type '{}' but argument has type '{}'", arg.0.name(), default_type, arg.0.ty()),
+                    );
+                }
+            }
         }
         self.visit(&node.statements);
         self.leave_function_scope();

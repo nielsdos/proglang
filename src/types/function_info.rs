@@ -11,7 +11,7 @@ pub struct ArgumentInfo<'ast> {
     name: &'ast str,
     ty: Type<'ast>,
     binding: BindingType,
-    default_value: Option<Spanned<Ast<'ast>>>
+    default_value: Option<Spanned<Ast<'ast>>>,
 }
 
 #[derive(Debug)]
@@ -49,6 +49,11 @@ impl<'ast> ArgumentInfo<'ast> {
     #[inline]
     pub fn binding(&self) -> BindingType {
         self.binding
+    }
+
+    #[inline]
+    pub fn default_value(&self) -> Option<&Spanned<Ast<'ast>>> {
+        self.default_value.as_ref()
     }
 
     // TODO: this isn't stable upon resize???
