@@ -266,12 +266,16 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
         .then_ignore(just(Token::LeftParen))
         .then(
             just(Token::Mut)
+                // Argument type and name
                 .to(BindingType::MutableVariable)
                 .or_not()
                 .map(|mutability| mutability.unwrap_or(BindingType::ImmutableVariable))
                 .then(parse_type())
                 .then(identifier)
-                .map_with(|((binding, ty), ident), extra| (ArgumentInfo::new(ident, ty, binding), extra.span()))
+                // Default value
+                .then(just(Token::Operator('=')).ignore_then(parse_expression()).or_not())
+                .map_with(|(((binding, ty), ident), default), extra| (ArgumentInfo::new(ident, ty, binding), extra.span()))
+                // Multiple of them
                 .separated_by(just(Token::Comma))
                 .allow_trailing()
                 .collect::<Vec<_>>(),
