@@ -56,7 +56,7 @@ impl<'ast> ArgumentInfo<'ast> {
         self.default_value.as_ref()
     }
 
-    // TODO: this isn't stable upon resize???
+    /// Note: this handle is stable after AST construction because the argument vector never resizes.
     #[inline]
     pub fn as_handle(&self) -> Handle {
         self as *const _ as Handle
