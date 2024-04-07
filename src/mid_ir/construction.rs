@@ -65,34 +65,32 @@ impl<'ctx> Construction<'ctx> {
                     MidExpression::FunctionReference(declaration_handle)
                 }
             }
-            Ast::FunctionCall(function_call) => {
-                match self.construct_from_expression(&function_call.callee) {
-                    MidExpression::FunctionReference(handle) => {
-                        let args = if let Some(order) = self.semantic_analyser.call_argument_order(handle) {
-                            order.iter().map(|arg| self.construct_from_expression(&arg.as_ref().unwrap())).collect::<Vec<_>>()
-                        } else {
-                            self.construct_args_from_function_call_node(function_call)
-                        };
+            Ast::FunctionCall(function_call) => match self.construct_from_expression(&function_call.callee) {
+                MidExpression::FunctionReference(handle) => {
+                    let args = if let Some(order) = self.semantic_analyser.call_argument_order(handle) {
+                        order.iter().map(|arg| self.construct_from_expression(arg.as_ref().unwrap())).collect::<Vec<_>>()
+                    } else {
+                        self.construct_args_from_function_call_node(function_call)
+                    };
 
-                        MidExpression::DirectCall(MidDirectCall {
-                            declaration_handle_of_target: handle,
-                            args,
-                        })
-                    },
-                    other => {
-                        let args = self.construct_args_from_function_call_node(function_call);
-                        MidExpression::IndirectCall(MidIndirectCall {
-                            expression: Box::new(other),
-                            args,
-                            ty: self
-                                .semantic_analyser
-                                .indirect_call_function_type(function_call.callee.0.as_handle())
-                                .expect("verified in type checker")
-                                .clone(),
-                        })
-                    },
+                    MidExpression::DirectCall(MidDirectCall {
+                        declaration_handle_of_target: handle,
+                        args,
+                    })
                 }
-            }
+                other => {
+                    let args = self.construct_args_from_function_call_node(function_call);
+                    MidExpression::IndirectCall(MidIndirectCall {
+                        expression: Box::new(other),
+                        args,
+                        ty: self
+                            .semantic_analyser
+                            .indirect_call_function_type(function_call.callee.0.as_handle())
+                            .expect("verified in type checker")
+                            .clone(),
+                    })
+                }
+            },
             Ast::MemberAccess(member_access) => {
                 let metadata = self.semantic_analyser.member_access_meta_data(expression.0.as_handle());
                 let lhs = self.construct_from_expression(&member_access.lhs);

@@ -3,8 +3,8 @@ use crate::analysis::semantic_analysis::{ClassMap, MemberAccessMetadata};
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
 use crate::syntax::ast::{
-    Assignment, BinaryOperation, BinaryOperationKind, BindingType, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement,
-    StatementList, UnaryOperation,
+    Assignment, BinaryOperation, BinaryOperationKind, BindingType, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess,
+    ReturnStatement, StatementList, UnaryOperation,
 };
 use crate::syntax::ast::{Ast, Declaration};
 use crate::syntax::span::{combine_span, Span, Spanned};
@@ -85,6 +85,21 @@ impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
             if !self.class_map.contains_key(name) {
                 self.semantic_error_list.report_error(span, format!("type '{}' was not found", name));
             }
+        }
+    }
+
+    fn check_argument_type(&mut self, arg: &'ast Spanned<Ast<'ast>>, expected_type: &Type<'ast>) {
+        let arg_type = self.visit(arg);
+        if arg_type != *expected_type {
+            self.semantic_error_list
+                .report_error(arg.1, format!("expected an argument of type '{}', but this argument has type '{}'", expected_type, arg_type));
+        }
+    }
+
+    /// Called in case it will be impossible to resolve the order, but we can still type check the argument expressions
+    fn visit_args_do_no_further_checks(&mut self, args: &'ast [FunctionCallArg<'ast>]) {
+        for arg in args.iter() {
+            self.visit(&arg.value);
         }
     }
 }
@@ -357,8 +372,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
                                 if ordered_args[matched_arg].is_none() {
                                     ordered_args[matched_arg] = Some(&arg.value);
                                 } else {
-                                    self.semantic_error_list
-                                        .report_error(name.1, format!("argument '{}' already passed", name.0 .0));
+                                    self.semantic_error_list.report_error(name.1, format!("argument '{}' already passed", name.0 .0));
                                 }
                             } else {
                                 self.semantic_error_list
@@ -371,35 +385,21 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
 
                     for (arg, expected_type) in ordered_args.iter().zip(callee_type.arg_types.iter()) {
                         if let Some(arg) = arg {
-                            let arg_type = self.visit(arg);
-                            if arg_type != *expected_type {
-                                self.semantic_error_list
-                                    .report_error(arg.1, format!("expected an argument of type '{}', but this argument has type '{}'", expected_type, arg_type));
-                            }
+                            self.check_argument_type(arg, expected_type);
                         }
                     }
 
                     self.call_argument_order.insert(handle, ordered_args);
                 } else {
-                    // It will be impossible to resolve the order, but we can still type check the argument expressions
-                    for arg in node.args.iter() {
-                        self.visit(&arg.value);
-                    }
+                    self.visit_args_do_no_further_checks(&node.args);
                 }
             } else {
                 self.semantic_error_list.report_error(span, "named arguments are not supported in indirect calls".to_string());
-                // It will be impossible to resolve the order, but we can still type check the argument expressions
-                for arg in node.args.iter() {
-                    self.visit(&arg.value);
-                }
+                self.visit_args_do_no_further_checks(&node.args);
             }
         } else {
             for (arg, expected_type) in node.args.iter().zip(callee_type.arg_types.iter()) {
-                let arg_type = self.visit(&arg.value);
-                if arg_type != *expected_type {
-                    self.semantic_error_list
-                        .report_error(arg.value.1, format!("expected an argument of type '{}', but this argument has type '{}'", expected_type, arg_type));
-                }
+                self.check_argument_type(&arg.value, expected_type);
             }
         }
 
