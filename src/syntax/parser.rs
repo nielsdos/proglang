@@ -274,7 +274,7 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
                 .then(identifier)
                 // Default value
                 .then(just(Token::Operator('=')).ignore_then(parse_expression()).or_not())
-                .map_with(|(((binding, ty), ident), default), extra| (ArgumentInfo::new(ident, ty, binding), extra.span()))
+                .map_with(|(((binding, ty), ident), default_value), extra| (ArgumentInfo::new(ident, ty, binding, default_value), extra.span()))
                 // Multiple of them
                 .separated_by(just(Token::Comma))
                 .allow_trailing()

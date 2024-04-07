@@ -31,7 +31,7 @@ impl<'b> Builtins<'b> {
     }
 
     fn create_builtin_float() -> BuiltinRecord<'b> {
-        let args = vec![span(ArgumentInfo::new("value", Type::Int, BindingType::ImmutableVariable))];
+        let args = vec![span(ArgumentInfo::new("value", Type::Int, BindingType::ImmutableVariable, None))];
         let body = MidStatement::Return(MidReturn {
             value: Some(MidExpression::BuiltinSiToFp(Box::new(MidExpression::VariableRead(MidVariableReference { variable_index: 0 })))),
         });

@@ -11,6 +11,7 @@ pub struct ArgumentInfo<'ast> {
     name: &'ast str,
     ty: Type<'ast>,
     binding: BindingType,
+    default_value: Option<Spanned<Ast<'ast>>>
 }
 
 #[derive(Debug)]
@@ -31,8 +32,8 @@ pub enum VariableUpdateError<'ast> {
 }
 
 impl<'ast> ArgumentInfo<'ast> {
-    pub fn new(name: &'ast str, ty: Type<'ast>, binding: BindingType) -> Self {
-        Self { name, ty, binding }
+    pub fn new(name: &'ast str, ty: Type<'ast>, binding: BindingType, default_value: Option<Spanned<Ast<'ast>>>) -> Self {
+        Self { name, ty, binding, default_value }
     }
 
     #[inline]
