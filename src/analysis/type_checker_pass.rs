@@ -261,6 +261,8 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
                 .expect("cannot fail because the variable did not exist yet");
         }
         self.report_type_existence(&node.return_type.0, node.return_type.1);
+
+        let mut first_optional_argument_span = None;
         for arg in &node.args {
             self.binding_types.insert(arg.0.as_handle(), arg.0.binding());
 
@@ -274,7 +276,24 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
                     );
                 }
             }
+
+            // All non-optional arguments must come before the first optional argument
+            if arg.0.default_value().is_some() {
+                if first_optional_argument_span.is_none() {
+                    first_optional_argument_span = Some(arg.1);
+                }
+            } else {
+                if let Some(first_optional_argument_span) = first_optional_argument_span {
+                    self.semantic_error_list.report_error_with_note(
+                        arg.1,
+                        "non-optional arguments must come before the first optional argument".to_string(),
+                        first_optional_argument_span,
+                        "first optional argument declared here".to_string(),
+                    );
+                }
+            }
         }
+
         self.visit(&node.statements);
         self.leave_function_scope();
         Type::Void

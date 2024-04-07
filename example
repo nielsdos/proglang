@@ -1,4 +1,4 @@
-fn test(int a, int b, int c = 3 * 4, int d = 4.0) -> int:
+fn test(int a, int b, int c = 3 * 4, int d = 4.0, int e) -> int:
     return a - b * c
 
 fn caller() -> int:
