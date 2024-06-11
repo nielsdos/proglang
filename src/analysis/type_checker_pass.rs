@@ -387,13 +387,16 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
 
                 // Check if we're passing too many arguments
                 if node.args.len() > total_argument_count {
-                    self.semantic_error_list.report_error(span, format!(
-                        "expected at most {} argument{}, but this function call has {} argument{}",
-                        total_argument_count,
-                        plural_letter(total_argument_count),
-                        node.args.len(),
-                        plural_letter(node.args.len())
-                    ));
+                    self.semantic_error_list.report_error(
+                        span,
+                        format!(
+                            "expected at most {} argument{}, but this function call has {} argument{}",
+                            total_argument_count,
+                            plural_letter(total_argument_count),
+                            node.args.len(),
+                            plural_letter(node.args.len())
+                        ),
+                    );
                     error = true;
                 }
 
@@ -425,8 +428,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
                             if let Some(default_value) = arg_info.0.default_value() {
                                 *arg = Some(default_value);
                             } else {
-                                self.semantic_error_list
-                                    .report_error(span, format!("argument '{}' not passed", arg_info.0.name()));
+                                self.semantic_error_list.report_error(span, format!("argument '{}' not passed", arg_info.0.name()));
                                 error = true;
                             }
                         }
@@ -449,13 +451,16 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
                 if has_named_args {
                     self.semantic_error_list.report_error(span, "named arguments are not supported in indirect calls".to_string());
                 } else {
-                    self.semantic_error_list.report_error(span, format!(
-                        "optional arguments are not supported in indirect calls; expected {} positional argument{}, but this function call has {} argument{}",
-                        total_argument_count,
-                        plural_letter(total_argument_count),
-                        node.args.len(),
-                        plural_letter(node.args.len())
-                    ));
+                    self.semantic_error_list.report_error(
+                        span,
+                        format!(
+                            "optional arguments are not supported in indirect calls; expected {} positional argument{}, but this function call has {} argument{}",
+                            total_argument_count,
+                            plural_letter(total_argument_count),
+                            node.args.len(),
+                            plural_letter(node.args.len())
+                        ),
+                    );
                 }
 
                 self.visit_args_do_no_further_checks(&node.args);
