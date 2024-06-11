@@ -282,15 +282,13 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
                 if first_optional_argument_span.is_none() {
                     first_optional_argument_span = Some(arg.1);
                 }
-            } else {
-                if let Some(first_optional_argument_span) = first_optional_argument_span {
-                    self.semantic_error_list.report_error_with_note(
-                        arg.1,
-                        "non-optional arguments must come before the first optional argument".to_string(),
-                        first_optional_argument_span,
-                        "first optional argument declared here".to_string(),
-                    );
-                }
+            } else if let Some(first_optional_argument_span) = first_optional_argument_span {
+                self.semantic_error_list.report_error_with_note(
+                    arg.1,
+                    "non-optional arguments must come before the first optional argument".to_string(),
+                    first_optional_argument_span,
+                    "first optional argument declared here".to_string(),
+                );
             }
         }
 

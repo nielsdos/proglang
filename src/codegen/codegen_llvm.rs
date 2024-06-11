@@ -526,7 +526,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                     .expect("valid expression")
             }
             MidExpression::FunctionReference(handle) => {
-                let function_value = self.function_declaration_handle_to_function_value[&handle];
+                let function_value = self.function_declaration_handle_to_function_value[handle];
                 BasicValueEnum::PointerValue(function_value.as_global_value().as_pointer_value())
             }
             MidExpression::MemberReference(member_reference) => {
