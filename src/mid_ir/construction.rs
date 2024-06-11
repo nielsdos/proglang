@@ -67,7 +67,7 @@ impl<'ctx> Construction<'ctx> {
             }
             Ast::FunctionCall(function_call) => match self.construct_from_expression(&function_call.callee) {
                 MidExpression::FunctionReference(handle) => {
-                    let args = if let Some(order) = self.semantic_analyser.call_argument_order(handle) {
+                    let args = if let Some(order) = self.semantic_analyser.call_argument_order(expression.0.as_handle()) {
                         order.iter().map(|arg| self.construct_from_expression(arg.as_ref().unwrap())).collect::<Vec<_>>()
                     } else {
                         self.construct_args_from_function_call_node(function_call)

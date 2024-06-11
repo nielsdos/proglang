@@ -341,7 +341,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
         Type::Void
     }
 
-    fn visit_function_call(&mut self, _: Handle, node: &'ast FunctionCall<'ast>, span: Span) -> Type<'ast> {
+    fn visit_function_call(&mut self, call_handle: Handle, node: &'ast FunctionCall<'ast>, span: Span) -> Type<'ast> {
         let callee_type = match self.visit(&node.callee) {
             Type::Function(function) => function,
             ty => {
@@ -353,24 +353,21 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
 
         self.indirect_call_function_types.insert(node.callee.0.as_handle(), callee_type.clone());
 
-        if node.args.len() != callee_type.arg_types.len() {
-            let plural_letter = |x: usize| if x == 1 { "" } else { "s" };
-            self.semantic_error_list.report_error(
-                span,
-                format!(
-                    "expected {} argument{}, but this function call has {} argument{}",
-                    callee_type.arg_types.len(),
-                    plural_letter(callee_type.arg_types.len()),
-                    node.args.len(),
-                    plural_letter(node.args.len())
-                ),
-            );
-        }
+        let declarator_handle = self.map_ast_handle_to_declarator(node.callee.0.as_handle());
+        let function_info = self.function_map.get(&declarator_handle);
 
-        let no_named_args = node.args.iter().all(|arg| arg.name.is_none());
-        if !no_named_args {
-            let handle = self.map_ast_handle_to_declarator(node.callee.0.as_handle());
-            if let Some(function_info) = self.function_map.get(&handle) {
+        let plural_letter = |x: usize| if x == 1 { "" } else { "s" };
+
+        // Check if we need any special handling (i.e. named arguments or optional arguments)
+        let has_named_args = node.args.iter().any(|arg| arg.name.is_some());
+        let total_argument_count = if let Some(function_info) = function_info {
+            function_info.args().len()
+        } else {
+            callee_type.arg_types.len()
+        };
+
+        if has_named_args || node.args.len() != total_argument_count {
+            if let Some(function_info) = function_info {
                 // Check that all positional arguments come before named arguments
                 let mut first_named_arg_span = None;
                 let mut error = false;
@@ -390,12 +387,21 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
                     }
                 }
 
+                // Check if we're passing too many arguments
+                if node.args.len() > total_argument_count {
+                    self.semantic_error_list.report_error(span, format!(
+                        "expected at most {} argument{}, but this function call has {} argument{}",
+                        total_argument_count,
+                        plural_letter(total_argument_count),
+                        node.args.len(),
+                        plural_letter(node.args.len())
+                    ));
+                    error = true;
+                }
+
                 // Put the arguments in the right order
                 if !error {
-                    let mut ordered_args = Vec::with_capacity(node.args.len());
-                    for _ in 0..node.args.len() {
-                        ordered_args.push(None);
-                    }
+                    let mut ordered_args = vec![None; total_argument_count];
                     for (index, arg) in node.args.iter().enumerate() {
                         if let Some(name) = &arg.name {
                             if let Some(matched_arg) = function_info.args().iter().position(|arg| arg.0.name() == name.0 .0) {
@@ -406,25 +412,54 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
                                 }
                             } else {
                                 self.semantic_error_list
-                                    .report_error(name.1, format!("argument '{}' not found in function '{}'", name.0 .0, function_info.name()));
+                                    .report_error(name.1, format!("argument '{}' not declared in function '{}'", name.0 .0, function_info.name()));
                             }
                         } else {
+                            // Positional arguments come before named arguments, so this position must not be filled in already
+                            debug_assert!(ordered_args[index].is_none());
                             ordered_args[index] = Some(&arg.value);
                         }
                     }
 
-                    for (arg, expected_type) in ordered_args.iter().zip(callee_type.arg_types.iter()) {
-                        if let Some(arg) = arg {
-                            self.check_argument_type(arg, expected_type);
+                    // Fill in optional arguments
+                    for (arg, arg_info) in ordered_args.iter_mut().zip(function_info.args().iter()) {
+                        if arg.is_none() {
+                            if let Some(default_value) = arg_info.0.default_value() {
+                                *arg = Some(default_value);
+                            } else {
+                                self.semantic_error_list
+                                    .report_error(span, format!("argument '{}' not passed", arg_info.0.name()));
+                                error = true;
+                            }
                         }
                     }
 
-                    self.call_argument_order.insert(handle, ordered_args);
+                    if !error {
+                        // Type check arguments
+                        for (arg, expected_type) in ordered_args.iter().zip(callee_type.arg_types.iter()) {
+                            self.check_argument_type(arg.expect("must be filled in during reordering"), expected_type);
+                        }
+
+                        assert!(self.call_argument_order.insert(call_handle, ordered_args).is_none());
+                    } else {
+                        self.visit_args_do_no_further_checks(&node.args);
+                    }
                 } else {
                     self.visit_args_do_no_further_checks(&node.args);
                 }
             } else {
-                self.semantic_error_list.report_error(span, "named arguments are not supported in indirect calls".to_string());
+                if has_named_args {
+                    self.semantic_error_list.report_error(span, "named arguments are not supported in indirect calls".to_string());
+                } else {
+                    self.semantic_error_list.report_error(span, format!(
+                        "optional arguments are not supported in indirect calls; expected {} positional argument{}, but this function call has {} argument{}",
+                        total_argument_count,
+                        plural_letter(total_argument_count),
+                        node.args.len(),
+                        plural_letter(node.args.len())
+                    ));
+                }
+
                 self.visit_args_do_no_further_checks(&node.args);
             }
         } else {

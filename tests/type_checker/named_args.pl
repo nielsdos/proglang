@@ -18,12 +18,14 @@ fn caller3() -> int:
     let t = test
     return t(b = 1, 3)
 
-# CHECK-NEXT: {{.+}}: argument 'c' not found in function 'test'
+# CHECK-NEXT: {{.+}}: argument 'c' not declared in function 'test'
 
 fn caller4() -> int:
     return test(c = 1, d = 3)
 
-# CHECK-NEXT: {{.+}}: argument 'd' not found in function 'test'
+# CHECK-NEXT: {{.+}}: argument 'd' not declared in function 'test'
+# CHECK-NEXT: {{.+}}: argument 'a' not passed
+# CHECK-NEXT: {{.+}}: argument 'b' not passed
 
 fn caller5() -> int:
     return test(a = 1, a = 3)

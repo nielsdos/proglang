@@ -91,7 +91,7 @@ fn main() -> ExitCode {
             for func in semantic_analyser.function_list_iter() {
                 let construction = Construction::new(&semantic_analyser, func);
                 let ir = construction.construct_from_function_declaration();
-                //println!("{:#?}", ir);
+                println!("{:#?}", ir);
                 mid_functions.push(ir);
             }
 
