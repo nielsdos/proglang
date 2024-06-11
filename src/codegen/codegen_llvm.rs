@@ -106,7 +106,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
             pm.add_jump_threading_pass();
         }
         if self.optimization_level >= 3 {
-            pm.add_aggressive_inst_combiner_pass();
+            pm.add_instruction_combining_pass();
         }
         pm
     }
