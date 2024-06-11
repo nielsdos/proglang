@@ -175,6 +175,7 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
             });
 
         let assignment = identifier
+            .map_with(|ident, extra| (ident, extra.span()))
             .then_ignore(just(Token::Operator('=')))
             .then(parse_expression())
             .then_ignore(just(Token::StatementEnd))
@@ -182,7 +183,7 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
             .map(|(ident, expr, span)| (Ast::Assignment(Assignment(ident, Box::new(expr))), span));
 
         let declaration = choice((just(Token::Let).to(BindingType::ImmutableVariable), just(Token::Mut).to(BindingType::MutableVariable)))
-            .then(identifier)
+            .then(identifier.map_with(|ident, extra| (ident, extra.span())))
             .then_ignore(just(Token::Operator('=')))
             .then(parse_expression())
             .then_ignore(just(Token::StatementEnd))

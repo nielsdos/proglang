@@ -84,7 +84,6 @@ impl<'ast, 'f> ScopeResolutionPass<'ast, 'f> {
         if let Some(declaration_handle) = self.resolve(identifier) {
             self.reference(handle, declaration_handle);
         } else {
-            // TODO: improve span to only highlight the identifier?
             self.semantic_error_list.report_error(span, format!("identifier '{}' was not found in the current scope", identifier));
         }
     }
@@ -95,14 +94,14 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, ()> for ScopeResolutionPass<'ast, 'f> 
         self.check_binding(handle, node.0, span);
     }
 
-    fn visit_assignment(&mut self, handle: Handle, node: &'ast Assignment<'ast>, span: Span) {
+    fn visit_assignment(&mut self, handle: Handle, node: &'ast Assignment<'ast>, _: Span) {
         self.visit(&node.1);
-        self.check_binding(handle, node.0, span);
+        self.check_binding(handle, node.0.0, node.0.1);
     }
 
     fn visit_declaration(&mut self, handle: Handle, node: &'ast Declaration<'ast>, span: Span) {
         self.visit(&node.assignment.1);
-        self.declare(node.assignment.0, handle, span);
+        self.declare(node.assignment.0.0, handle, span);
     }
 
     fn visit_statement_list(&mut self, _: Handle, node: &'ast StatementList<'ast>, _: Span) {

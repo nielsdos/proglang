@@ -61,7 +61,7 @@ pub struct BinaryOperation<'src>(pub Box<Spanned<Ast<'src>>>, pub BinaryOperatio
 #[derive(Debug)]
 pub struct UnaryOperation<'src>(pub UnaryOperationKind, pub Box<Spanned<Ast<'src>>>);
 #[derive(Debug)]
-pub struct Assignment<'src>(pub &'src str, pub Box<Spanned<Ast<'src>>>);
+pub struct Assignment<'src>(pub Spanned<&'src str>, pub Box<Spanned<Ast<'src>>>);
 #[derive(Debug, Copy, Clone)]
 pub enum BindingType {
     MutableVariable,

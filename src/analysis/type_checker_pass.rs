@@ -191,11 +191,11 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
 
         match binding_type {
             BindingType::ImmutableVariable => {
-                self.semantic_error_list.report_error(span, format!("the variable '{}' is immutable", node.0));
+                self.semantic_error_list.report_error(span, format!("the variable '{}' is immutable", node.0.0));
                 return rhs_type;
             }
             BindingType::NonVariable => {
-                self.semantic_error_list.report_error(span, format!("cannot assign to a non-variable '{}'", node.0));
+                self.semantic_error_list.report_error(span, format!("cannot assign to a non-variable '{}'", node.0.0));
                 return rhs_type;
             }
             _ => {}
@@ -207,7 +207,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
                     span,
                     format!(
                         "the variable '{}' has mismatching types: previously had type '{}', but this assigns a value of type '{}'",
-                        node.0, old_type, rhs_type
+                        node.0.0, old_type, rhs_type
                     ),
                 );
                 Type::Error
