@@ -57,6 +57,10 @@ impl<'a> Type<'a> {
         matches!(self, Type::Reference(_))
     }
 
+    pub fn is_void(&self) -> bool {
+        matches!(self, Type::Void)
+    }
+
     pub fn is_structure(&self) -> bool {
         matches!(self, Type::UserType(_))
     }

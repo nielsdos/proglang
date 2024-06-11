@@ -1,2 +1,6 @@
-fn test():
-    a = 4
+fn voidfun():
+    return
+
+fn nonvoidfun(fn () x) -> int:
+    x()
+    return 1

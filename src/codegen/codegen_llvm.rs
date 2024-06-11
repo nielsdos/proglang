@@ -191,13 +191,18 @@ impl<'ctx> CodeGenInner<'ctx> {
     }
 
     fn construct_llvm_function_type(&mut self, function_type: &FunctionType<'ctx>) -> types::FunctionType<'ctx> {
-        let return_type = self.get_or_insert_llvm_type(&function_type.return_type);
         let arg_types = function_type
             .arg_types
             .iter()
             .map(|arg| self.get_or_insert_llvm_type(arg).into())
             .collect::<SmallVec<[BasicMetadataTypeEnum<'ctx>; 4]>>();
-        return_type.fn_type(arg_types.as_slice(), false)
+
+        if function_type.return_type.is_void() {
+            self.void_type.fn_type(arg_types.as_slice(), false)
+        } else {
+            let return_type = self.get_or_insert_llvm_type(&function_type.return_type);
+            return_type.fn_type(arg_types.as_slice(), false)
+        }
     }
 
     fn convert_to_basic_type(&self, ty: &AnyTypeEnum<'ctx>) -> BasicTypeEnum<'ctx> {
@@ -220,7 +225,7 @@ impl<'ctx> CodeGenInner<'ctx> {
             let llvm_ty = match ty {
                 Type::Function(ty) => self.construct_llvm_function_type(ty).into(),
                 Type::Reference(ty) => AnyTypeEnum::PointerType(self.get_or_insert_llvm_type(ty).ptr_type(AddressSpace::default())),
-                _ => unimplemented!(),
+                _ => unimplemented!("{:?}", ty),
             };
             self.type_to_llvm_type.insert(ty.clone(), llvm_ty);
             self.convert_to_basic_type(&llvm_ty)
