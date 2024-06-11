@@ -72,7 +72,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
             pm.add_type_based_alias_analysis_pass();
             pm.add_scoped_no_alias_aa_pass();
             pm.add_function_attrs_pass();
-            pm.add_ipsccp_pass();
+            //pm.add_ipsccp_pass(); TODO: FIXME
             pm.add_sccp_pass();
             pm.add_global_optimizer_pass();
             pm.add_basic_alias_analysis_pass();
