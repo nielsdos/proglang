@@ -372,6 +372,9 @@ impl<'ctx> CodeGenInner<'ctx> {
 
                 function_context.builder.position_at_end(after_if_block);
             }
+            MidStatement::Expression(expression) => {
+                self.emit_expression(expression, function_context);
+            }
         }
     }
 
@@ -501,7 +504,6 @@ impl<'ctx> CodeGenInner<'ctx> {
                     .as_basic_value_enum()
             }
             MidExpression::DirectCall(direct_call) => {
-                // TODO: fail on void?
                 let function_args = self.construct_argument_array(&direct_call.args, function_context);
                 let function_value = self.function_declaration_handle_to_function_value[&direct_call.declaration_handle_of_target];
 
@@ -510,10 +512,9 @@ impl<'ctx> CodeGenInner<'ctx> {
                     .build_direct_call(function_value, function_args.as_slice(), "direct_call")
                     .try_as_basic_value()
                     .left()
-                    .expect("valid expression")
+                    .unwrap_or_else(|| self.int_type.const_zero().as_basic_value_enum())
             }
             MidExpression::IndirectCall(indirect_call) => {
-                // TODO: fail on void?
                 let function_args = self.construct_argument_array(&indirect_call.args, function_context);
                 let llvm_callee_ty = self.get_llvm_type_raw(&Type::Function(indirect_call.ty.clone()));
                 let function_value = self.emit_expression(&indirect_call.expression, function_context);
@@ -523,7 +524,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                     .build_indirect_call(llvm_callee_ty.into_function_type(), function_value.into_pointer_value(), function_args.as_slice(), "indirect_call")
                     .try_as_basic_value()
                     .left()
-                    .expect("valid expression")
+                    .unwrap_or_else(|| self.int_type.const_zero().as_basic_value_enum())
             }
             MidExpression::FunctionReference(handle) => {
                 let function_value = self.function_declaration_handle_to_function_value[handle];

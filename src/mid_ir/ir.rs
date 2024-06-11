@@ -97,6 +97,7 @@ pub enum MidStatement<'t> {
     Assignment(MidAssignment<'t>),
     Return(MidReturn<'t>),
     If(MidIf<'t>),
+    Expression(MidExpression<'t>),
 }
 
 #[derive(Debug)]

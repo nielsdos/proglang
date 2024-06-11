@@ -156,6 +156,7 @@ impl<'ctx> Construction<'ctx> {
                 then_statements: self.construct_from_ast_ensure_statement_list(&if_statement.then_statements),
                 else_statements: if_statement.else_statements.as_ref().map(|statements| self.construct_from_ast_ensure_statement_list(statements)),
             }),
+            Ast::FunctionCall(_) => MidStatement::Expression(self.construct_from_expression(statement)),
             _ => unreachable!(),
         }
     }
