@@ -11,5 +11,5 @@ chumsky = "1.0.0-alpha.7"
 clap = "^4.3.5"
 clap-num = "^1.0.2"
 clap_derive = "^4.3.2"
-inkwell = { version = "0.3.0", features = ["llvm16-0", "target-x86"] }
+inkwell = { version = "0.4.0", features = ["llvm16-0", "target-x86"] }
 smallvec = "^1.10.0"
