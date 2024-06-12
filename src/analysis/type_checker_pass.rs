@@ -11,24 +11,24 @@ use crate::syntax::span::{combine_span, Span, Spanned};
 use crate::types::function_info::{FunctionInfo, VariableUpdateError};
 use crate::types::type_system::{FunctionType, Type};
 use crate::util::handle::Handle;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::rc::Rc;
 
 pub(crate) struct TypeCheckerPass<'ast, 'f> {
     pub(crate) current_function: Option<Handle>,
-    pub(crate) function_map: &'f mut HashMap<Handle, FunctionInfo<'ast>>,
+    pub(crate) function_map: &'f mut FxHashMap<Handle, FunctionInfo<'ast>>,
     pub(crate) scope_reference_map: &'f ScopeReferenceMap,
     class_map: &'f ClassMap<'ast>,
-    pub(crate) member_access_meta_data: HashMap<Handle, MemberAccessMetadata<'ast>>,
-    pub(crate) binding_types: HashMap<Handle, BindingType>,
-    pub(crate) indirect_call_function_types: HashMap<Handle, Rc<FunctionType<'ast>>>,
-    pub(crate) call_argument_order: HashMap<Handle, Vec<Option<&'ast Spanned<Ast<'ast>>>>>,
+    pub(crate) member_access_meta_data: FxHashMap<Handle, MemberAccessMetadata<'ast>>,
+    pub(crate) binding_types: FxHashMap<Handle, BindingType>,
+    pub(crate) indirect_call_function_types: FxHashMap<Handle, Rc<FunctionType<'ast>>>,
+    pub(crate) call_argument_order: FxHashMap<Handle, Vec<Option<&'ast Spanned<Ast<'ast>>>>>,
     pub(crate) semantic_error_list: &'f mut SemanticErrorList,
 }
 
 impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
     pub fn new(
-        function_map: &'f mut HashMap<Handle, FunctionInfo<'ast>>,
+        function_map: &'f mut FxHashMap<Handle, FunctionInfo<'ast>>,
         scope_reference_map: &'f ScopeReferenceMap,
         class_map: &'f ClassMap<'ast>,
         semantic_error_list: &'f mut SemanticErrorList,

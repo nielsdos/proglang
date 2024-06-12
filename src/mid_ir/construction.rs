@@ -8,12 +8,12 @@ use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
 use crate::types::type_system::Type;
 use crate::util::handle::Handle;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 pub struct Construction<'ctx> {
     semantic_analyser: &'ctx SemanticAnalyser<'ctx>,
     variables: Vec<&'ctx Type<'ctx>>,
-    handle_to_var_idx: HashMap<Handle, usize>,
+    handle_to_var_idx: FxHashMap<Handle, usize>,
     arg_idx_to_var_idx: Vec<usize>,
     function_info: &'ctx FunctionInfo<'ctx>,
 }
@@ -21,7 +21,7 @@ pub struct Construction<'ctx> {
 impl<'ctx> Construction<'ctx> {
     pub fn new(semantic_analyser: &'ctx SemanticAnalyser<'ctx>, function_info: &'ctx FunctionInfo<'ctx>) -> Self {
         let mut variables = Vec::new();
-        let mut handle_to_var_idx = HashMap::new();
+        let mut handle_to_var_idx = FxHashMap::default();
         let mut arg_idx_to_var_idx = Vec::new();
         for (handle, ty) in function_info.variables() {
             handle_to_var_idx.insert(handle, variables.len());

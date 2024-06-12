@@ -14,8 +14,8 @@ use inkwell::targets::{CodeModel, FileType, InitializationConfig, RelocMode, Tar
 use inkwell::types::{AnyTypeEnum, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FloatType, IntType, VoidType};
 use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue};
 use inkwell::{types, AddressSpace, IntPredicate, OptimizationLevel};
+use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
-use std::collections::HashMap;
 use std::path::Path;
 
 pub struct CodeGenContext(Context);
@@ -39,9 +39,9 @@ struct CodeGenFunctionContext<'ctx> {
 
 struct CodeGenInner<'ctx> {
     module: Module<'ctx>,
-    function_declaration_handle_to_function_value: HashMap<Handle, FunctionValue<'ctx>>,
+    function_declaration_handle_to_function_value: FxHashMap<Handle, FunctionValue<'ctx>>,
     optimization_level: u32,
-    type_to_llvm_type: HashMap<Type<'ctx>, AnyTypeEnum<'ctx>>,
+    type_to_llvm_type: FxHashMap<Type<'ctx>, AnyTypeEnum<'ctx>>,
     // Primitive types here for faster lookup
     void_type: VoidType<'ctx>,
     int_type: IntType<'ctx>,
@@ -157,7 +157,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
 
 impl<'ctx> CodeGenInner<'ctx> {
     pub fn new(module: Module<'ctx>, optimization_level: u32, context: &'ctx Context) -> Self {
-        let mut type_to_llvm_type = HashMap::new();
+        let mut type_to_llvm_type = FxHashMap::default();
 
         // Store basic types
         let int_type = context.i64_type();

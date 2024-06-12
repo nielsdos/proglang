@@ -5,12 +5,12 @@ use crate::syntax::ast::FunctionDeclaration;
 use crate::syntax::span::Span;
 use crate::types::function_info::FunctionInfo;
 use crate::util::handle::Handle;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 pub(crate) struct FunctionCollectorPass<'f, 'ast> {
     function_map: FunctionMap<'ast>,
     semantic_error_list: &'f mut SemanticErrorList,
-    seen_function_names: HashMap<&'ast str, Span>,
+    seen_function_names: FxHashMap<&'ast str, Span>,
 }
 
 impl<'f, 'ast> FunctionCollectorPass<'f, 'ast> {

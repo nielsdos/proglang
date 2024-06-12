@@ -4,17 +4,17 @@ use crate::analysis::semantic_error::SemanticErrorList;
 use crate::syntax::ast::{Assignment, Declaration, FunctionDeclaration, Identifier, StatementList};
 use crate::syntax::span::Span;
 use crate::util::handle::Handle;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 #[derive(Default)]
 pub struct ScopeReferenceMap {
-    pub(crate) references: HashMap<Handle, Handle>,
+    pub(crate) references: FxHashMap<Handle, Handle>,
 }
 
 pub(crate) struct ScopeResolutionPass<'ast, 'f> {
     /// Every item of the vec maps an identifier to the handle declaring the identifier.
     /// The topmost item is the currently active scope.
-    environment_stack: Vec<HashMap<&'ast str, Handle>>,
+    environment_stack: Vec<FxHashMap<&'ast str, Handle>>,
     /// Maps an identifier handle to its declaration handle.
     reference_map: ScopeReferenceMap,
 

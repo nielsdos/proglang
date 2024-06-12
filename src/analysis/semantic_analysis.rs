@@ -12,20 +12,21 @@ use crate::types::class_info::ClassInfo;
 use crate::types::function_info::FunctionInfo;
 use crate::types::type_system::{FunctionType, Type};
 use crate::util::handle::Handle;
-use std::collections::{hash_map::Values, HashMap};
+use rustc_hash::FxHashMap;
+use std::collections::hash_map::Values;
 use std::rc::Rc;
 
-pub type FunctionMap<'ast> = HashMap<Handle, FunctionInfo<'ast>>;
-pub type ClassMap<'ast> = HashMap<&'ast str, ClassInfo<'ast>>;
-pub type CallArgumentOrder<'ast> = HashMap<Handle, Vec<Option<&'ast Spanned<Ast<'ast>>>>>;
+pub type FunctionMap<'ast> = FxHashMap<Handle, FunctionInfo<'ast>>;
+pub type ClassMap<'ast> = FxHashMap<&'ast str, ClassInfo<'ast>>;
+pub type CallArgumentOrder<'ast> = FxHashMap<Handle, Vec<Option<&'ast Spanned<Ast<'ast>>>>>;
 
 pub struct SemanticAnalyser<'ast> {
     ast: &'ast Spanned<Ast<'ast>>,
     scope_reference_map: ScopeReferenceMap,
     function_map: FunctionMap<'ast>,
     class_map: ClassMap<'ast>,
-    indirect_call_function_types: HashMap<Handle, Rc<FunctionType<'ast>>>,
-    member_access_meta_data: HashMap<Handle, MemberAccessMetadata<'ast>>,
+    indirect_call_function_types: FxHashMap<Handle, Rc<FunctionType<'ast>>>,
+    member_access_meta_data: FxHashMap<Handle, MemberAccessMetadata<'ast>>,
     call_argument_order: CallArgumentOrder<'ast>,
     errors: Vec<SemanticError>,
 }

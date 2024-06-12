@@ -2,8 +2,8 @@ use crate::syntax::ast::{Ast, BindingType};
 use crate::syntax::span::Spanned;
 use crate::types::type_system::{FunctionType, Type};
 use crate::util::handle::Handle;
+use rustc_hash::FxHashMap;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -17,7 +17,7 @@ pub struct ArgumentInfo<'ast> {
 #[derive(Debug)]
 pub struct FunctionInfo<'ast> {
     body: &'ast Spanned<Ast<'ast>>,
-    variable_types: HashMap<Handle, Type<'ast>>,
+    variable_types: FxHashMap<Handle, Type<'ast>>,
     args: &'ast [Spanned<ArgumentInfo<'ast>>],
     name: &'ast str,
     declaration_handle: Handle,
@@ -72,7 +72,7 @@ impl<'ast> FunctionInfo<'ast> {
 
         Self {
             body,
-            variable_types: HashMap::new(),
+            variable_types: Default::default(),
             args,
             name,
             declaration_handle,

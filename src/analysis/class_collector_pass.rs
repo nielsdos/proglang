@@ -5,12 +5,12 @@ use crate::syntax::ast::Class;
 use crate::syntax::span::Span;
 use crate::types::class_info::ClassInfo;
 use crate::util::handle::Handle;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 pub(crate) struct ClassCollectorPass<'f, 'ast> {
     class_map: ClassMap<'ast>,
     semantic_error_list: &'f mut SemanticErrorList,
-    seen_class_names: HashMap<&'ast str, Span>,
+    seen_class_names: FxHashMap<&'ast str, Span>,
 }
 
 impl<'f, 'ast> ClassCollectorPass<'f, 'ast> {

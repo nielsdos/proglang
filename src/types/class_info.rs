@@ -1,8 +1,8 @@
 use crate::syntax::ast::ClassField;
 use crate::syntax::span::{Span, Spanned};
 use crate::types::type_system::Type;
+use rustc_hash::FxHashMap;
 use std::collections::hash_map::Entry;
-use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct ClassFieldInfo<'ast> {
@@ -13,7 +13,7 @@ pub struct ClassFieldInfo<'ast> {
 #[derive(Debug)]
 pub struct ClassInfo<'ast> {
     name: &'ast str,
-    fields: HashMap<&'ast str, ClassFieldInfo<'ast>>,
+    fields: FxHashMap<&'ast str, ClassFieldInfo<'ast>>,
 }
 
 impl<'ast> ClassInfo<'ast> {
