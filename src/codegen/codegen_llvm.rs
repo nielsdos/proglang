@@ -287,7 +287,7 @@ impl<'ctx> CodeGenInner<'ctx> {
         for variable_type in &mid_function.variables {
             // Can't have a declaration without an assignment, so setting a default value is not necessary
             let variable_type = self.get_llvm_type_raw(variable_type);
-            let variable_memory = builder.build_alloca(self.convert_to_basic_type(variable_type), "var");
+            let variable_memory = builder.build_alloca(self.convert_to_basic_type(variable_type), "var").expect("valid builder");
             variables.push(VariableInfo {
                 ptr: variable_memory,
                 ty: *variable_type,
@@ -298,7 +298,7 @@ impl<'ctx> CodeGenInner<'ctx> {
         for (argument_index, &variable_index) in mid_function.arg_idx_to_var_idx.iter().enumerate() {
             let variable_memory = variables[variable_index].ptr;
             let arg_value = function_value.get_nth_param(argument_index as u32).expect("argument should exist");
-            builder.build_store(variable_memory, arg_value);
+            builder.build_store(variable_memory, arg_value).expect("valid builder");
         }
 
         // Emit instructions
@@ -308,9 +308,9 @@ impl<'ctx> CodeGenInner<'ctx> {
 
         if function_context.is_bb_unterminated() {
             if *mid_function.return_type() == Type::Void {
-                function_context.builder.build_return(None);
+                function_context.builder.build_return(None).expect("valid builder");
             } else {
-                function_context.builder.build_unreachable();
+                function_context.builder.build_unreachable().expect("valid builder");
             }
         }
 
@@ -334,14 +334,14 @@ impl<'ctx> CodeGenInner<'ctx> {
             MidStatement::Assignment(assignment) => {
                 let value = self.emit_expression(&assignment.value, function_context);
                 let target = self.emit_target(&assignment.target, function_context);
-                function_context.builder.build_store(target, value);
+                function_context.builder.build_store(target, value).expect("valid builder");
             }
             MidStatement::Return(return_statement) => match &return_statement.value {
                 Some(value) => {
-                    function_context.builder.build_return(Some(&self.emit_expression(value, function_context)));
+                    function_context.builder.build_return(Some(&self.emit_expression(value, function_context))).expect("valid builder");
                 }
                 None => {
-                    function_context.builder.build_return(None);
+                    function_context.builder.build_return(None).expect("valid builder");
                 }
             },
             MidStatement::If(if_statement) => {
@@ -355,24 +355,27 @@ impl<'ctx> CodeGenInner<'ctx> {
                     codegen.context.0.append_basic_block(function_context.function_value, "else")
                 };
 
-                function_context.builder.build_conditional_branch(condition.into_int_value(), true_block, false_block);
+                function_context
+                    .builder
+                    .build_conditional_branch(condition.into_int_value(), true_block, false_block)
+                    .expect("valid builder");
 
                 function_context.builder.position_at_end(true_block);
                 self.emit_statement_list(&if_statement.then_statements, function_context, codegen);
                 if function_context.is_bb_unterminated() {
-                    function_context.builder.build_unconditional_branch(after_if_block);
+                    function_context.builder.build_unconditional_branch(after_if_block).expect("valid builder");
                 }
 
                 if let Some(else_statements) = &if_statement.else_statements {
                     function_context.builder.position_at_end(false_block);
                     self.emit_statement_list(else_statements, function_context, codegen);
                     if function_context.is_bb_unterminated() {
-                        function_context.builder.build_unconditional_branch(after_if_block);
+                        function_context.builder.build_unconditional_branch(after_if_block).expect("valid builder");
                     }
                 }
 
                 if function_context.is_bb_unterminated() {
-                    function_context.builder.build_unconditional_branch(after_if_block);
+                    function_context.builder.build_unconditional_branch(after_if_block).expect("valid builder");
                 }
 
                 function_context.builder.position_at_end(after_if_block);
@@ -402,7 +405,7 @@ impl<'ctx> CodeGenInner<'ctx> {
         match expression {
             MidExpression::VariableRead(variable_reference) => {
                 let (pointer, ty) = self.emit_variable_reference(variable_reference, function_context);
-                function_context.builder.build_load(self.convert_to_basic_type(&ty), pointer, "var")
+                function_context.builder.build_load(self.convert_to_basic_type(&ty), pointer, "var").expect("valid builder")
             }
             MidExpression::VariableReference(variable_reference) => self.emit_variable_reference(variable_reference, function_context).0.as_basic_value_enum(),
             MidExpression::BinaryOperation(binary_operation) => {
@@ -415,62 +418,111 @@ impl<'ctx> CodeGenInner<'ctx> {
                         function_context
                             .builder
                             .build_float_compare(binary_operation.op.to_llvm_float_comparison(), lhs_value.into_float_value(), rhs_value.into_float_value(), "eq")
+                            .expect("valid builder")
                             .into()
                     } else {
                         function_context
                             .builder
                             .build_int_compare(binary_operation.op.to_llvm_int_comparison(), lhs_value.into_int_value(), rhs_value.into_int_value(), "eq")
+                            .expect("valid builder")
                             .into()
                     }
                 } else {
                     match binary_operation.op {
                         BinaryOperationKind::Addition => {
                             if lhs_value.is_float_value() {
-                                function_context.builder.build_float_add(lhs_value.into_float_value(), rhs_value.into_float_value(), "add").into()
+                                function_context
+                                    .builder
+                                    .build_float_add(lhs_value.into_float_value(), rhs_value.into_float_value(), "add")
+                                    .expect("valid builder")
+                                    .into()
                             } else {
-                                function_context.builder.build_int_add(lhs_value.into_int_value(), rhs_value.into_int_value(), "add").into()
+                                function_context
+                                    .builder
+                                    .build_int_add(lhs_value.into_int_value(), rhs_value.into_int_value(), "add")
+                                    .expect("valid builder")
+                                    .into()
                             }
                         }
                         BinaryOperationKind::Subtraction => {
                             if lhs_value.is_float_value() {
-                                function_context.builder.build_float_sub(lhs_value.into_float_value(), rhs_value.into_float_value(), "sub").into()
+                                function_context
+                                    .builder
+                                    .build_float_sub(lhs_value.into_float_value(), rhs_value.into_float_value(), "sub")
+                                    .expect("valid builder")
+                                    .into()
                             } else {
-                                function_context.builder.build_int_sub(lhs_value.into_int_value(), rhs_value.into_int_value(), "sub").into()
+                                function_context
+                                    .builder
+                                    .build_int_sub(lhs_value.into_int_value(), rhs_value.into_int_value(), "sub")
+                                    .expect("valid builder")
+                                    .into()
                             }
                         }
                         BinaryOperationKind::Product => {
                             if lhs_value.is_float_value() {
-                                function_context.builder.build_float_mul(lhs_value.into_float_value(), rhs_value.into_float_value(), "mul").into()
+                                function_context
+                                    .builder
+                                    .build_float_mul(lhs_value.into_float_value(), rhs_value.into_float_value(), "mul")
+                                    .expect("valid builder")
+                                    .into()
                             } else {
-                                function_context.builder.build_int_mul(lhs_value.into_int_value(), rhs_value.into_int_value(), "mul").into()
+                                function_context
+                                    .builder
+                                    .build_int_mul(lhs_value.into_int_value(), rhs_value.into_int_value(), "mul")
+                                    .expect("valid builder")
+                                    .into()
                             }
                         }
                         BinaryOperationKind::DoubleDivision => {
                             assert!(lhs_value.is_float_value() && rhs_value.is_float_value());
-                            function_context.builder.build_float_div(lhs_value.into_float_value(), rhs_value.into_float_value(), "div").into()
+                            function_context
+                                .builder
+                                .build_float_div(lhs_value.into_float_value(), rhs_value.into_float_value(), "div")
+                                .expect("valid builder")
+                                .into()
                         }
                         BinaryOperationKind::WholeDivision => {
                             if lhs_value.is_float_value() {
-                                let div_result = function_context.builder.build_float_div(lhs_value.into_float_value(), rhs_value.into_float_value(), "div");
+                                let div_result = function_context
+                                    .builder
+                                    .build_float_div(lhs_value.into_float_value(), rhs_value.into_float_value(), "div")
+                                    .expect("valid builder");
                                 let floor_intrinsic = Intrinsic::find("llvm.floor").expect("floor intrinsic should exist");
                                 let floor_function = floor_intrinsic.get_declaration(&self.module, &[lhs_value.get_type()]).expect("floor function should exist");
                                 function_context
                                     .builder
                                     .build_call(floor_function, &[div_result.into()], "floor")
+                                    .expect("valid builder")
                                     .try_as_basic_value()
                                     .expect_left("value should exist")
                             } else {
                                 let lhs_value = lhs_value.into_int_value();
                                 let rhs_value = rhs_value.into_int_value();
-                                let sign_lhs = function_context.builder.build_and(lhs_value, self.int_type.const_int(1 << 63, false), "sign_lhs");
-                                let sign_rhs = function_context.builder.build_and(rhs_value, self.int_type.const_int(1 << 63, false), "sign_rhs");
-                                let division = function_context.builder.build_int_signed_div(lhs_value, rhs_value, "div");
-                                let modulo = function_context.builder.build_int_signed_rem(lhs_value, rhs_value, "mod");
-                                let comparison_sign = function_context.builder.build_int_compare(IntPredicate::EQ, sign_lhs, sign_rhs, "sign_cmp");
-                                let comparison_mod = function_context.builder.build_int_compare(IntPredicate::EQ, modulo, self.int_type.const_int(0, false), "mod_cmp");
-                                let both_conditions = function_context.builder.build_or(comparison_sign, comparison_mod, "both_cmp");
-                                let different_sign_result = function_context.builder.build_int_sub(division, self.int_type.const_int(1, true), "diff_sign_div");
-                                function_context.builder.build_select(both_conditions, division, different_sign_result, "whole_div_int")
+                                let sign_lhs = function_context
+                                    .builder
+                                    .build_and(lhs_value, self.int_type.const_int(1 << 63, false), "sign_lhs")
+                                    .expect("valid builder");
+                                let sign_rhs = function_context
+                                    .builder
+                                    .build_and(rhs_value, self.int_type.const_int(1 << 63, false), "sign_rhs")
+                                    .expect("valid builder");
+                                let division = function_context.builder.build_int_signed_div(lhs_value, rhs_value, "div").expect("valid builder");
+                                let modulo = function_context.builder.build_int_signed_rem(lhs_value, rhs_value, "mod").expect("valid builder");
+                                let comparison_sign = function_context.builder.build_int_compare(IntPredicate::EQ, sign_lhs, sign_rhs, "sign_cmp").expect("valid builder");
+                                let comparison_mod = function_context
+                                    .builder
+                                    .build_int_compare(IntPredicate::EQ, modulo, self.int_type.const_int(0, false), "mod_cmp")
+                                    .expect("valid builder");
+                                let both_conditions = function_context.builder.build_or(comparison_sign, comparison_mod, "both_cmp").expect("valid builder");
+                                let different_sign_result = function_context
+                                    .builder
+                                    .build_int_sub(division, self.int_type.const_int(1, true), "diff_sign_div")
+                                    .expect("valid builder");
+                                function_context
+                                    .builder
+                                    .build_select(both_conditions, division, different_sign_result, "whole_div_int")
+                                    .expect("valid builder")
                             }
                         }
                         BinaryOperationKind::Power => {
@@ -480,6 +532,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                             function_context
                                 .builder
                                 .build_call(pow_function, &[lhs_value.into(), rhs_value.into()], "pow")
+                                .expect("valid builder")
                                 .try_as_basic_value()
                                 .expect_left("value should exist")
                         }
@@ -492,10 +545,10 @@ impl<'ctx> CodeGenInner<'ctx> {
                 if operand_value.is_int_value() {
                     // TODO: overflow?
                     let result = function_context.builder.build_int_neg(operand_value.into_int_value(), "neg");
-                    result.into()
+                    result.expect("valid builder").into()
                 } else {
                     let result = function_context.builder.build_float_neg(operand_value.into_float_value(), "neg");
-                    result.into()
+                    result.expect("valid builder").into()
                 }
             }
             MidExpression::LiteralInt(value) => self.int_type.const_int(*value as u64, false).into(),
@@ -506,6 +559,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                 function_context
                     .builder
                     .build_signed_int_to_float(value.into_int_value(), self.double_type, "conv")
+                    .expect("valid builder")
                     .as_basic_value_enum()
             }
             MidExpression::DirectCall(direct_call) => {
@@ -515,6 +569,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                 function_context
                     .builder
                     .build_direct_call(function_value, function_args.as_slice(), "direct_call")
+                    .expect("valid builder")
                     .try_as_basic_value()
                     .left()
                     .unwrap_or_else(|| self.int_type.const_zero().as_basic_value_enum())
@@ -527,6 +582,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                 function_context
                     .builder
                     .build_indirect_call(llvm_callee_ty.into_function_type(), function_value.into_pointer_value(), function_args.as_slice(), "indirect_call")
+                    .expect("valid builder")
                     .try_as_basic_value()
                     .left()
                     .unwrap_or_else(|| self.int_type.const_zero().as_basic_value_enum())
@@ -548,7 +604,11 @@ impl<'ctx> CodeGenInner<'ctx> {
             MidExpression::PointerLoad(pointer_load) => {
                 let of = self.emit_expression(&pointer_load.of, function_context);
                 let of_type = self.get_llvm_type(&pointer_load.of_type);
-                function_context.builder.build_load(of_type, of.into_pointer_value(), "ptr_load").as_basic_value_enum()
+                function_context
+                    .builder
+                    .build_load(of_type, of.into_pointer_value(), "ptr_load")
+                    .expect("valid builder")
+                    .as_basic_value_enum()
             }
         }
     }
