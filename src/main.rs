@@ -1,7 +1,6 @@
 extern crate core;
 
 use crate::analysis::semantic_analysis::SemanticAnalyser;
-use crate::builtin::Builtins;
 use crate::codegen::codegen_driver::CodeGen;
 use crate::codegen::codegen_llvm::CodeGenContext;
 use crate::mid_ir::construction::Construction;
@@ -14,7 +13,6 @@ use std::process::ExitCode;
 use std::rc::Rc;
 
 pub mod analysis;
-pub mod builtin;
 pub mod codegen;
 pub mod mid_ir;
 pub mod syntax;
@@ -61,9 +59,7 @@ fn main() -> ExitCode {
             println!("{:#?}", ast);
         }
 
-        let builtins = Builtins::new();
-
-        let mut semantic_analyser = SemanticAnalyser::new(&ast, &builtins);
+        let mut semantic_analyser = SemanticAnalyser::new(&ast);
         semantic_analyser.analyse();
 
         if args.machine_friendly_output {

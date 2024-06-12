@@ -6,7 +6,6 @@ use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::{SemanticError, SemanticErrorList};
 use crate::analysis::type_checker_pass::TypeCheckerPass;
 use crate::analysis::type_graph_pass::TypeGraphPass;
-use crate::builtin::Builtins;
 use crate::syntax::ast::Ast;
 use crate::syntax::span::Spanned;
 use crate::types::class_info::ClassInfo;
@@ -22,7 +21,6 @@ pub type CallArgumentOrder<'ast> = HashMap<Handle, Vec<Option<&'ast Spanned<Ast<
 
 pub struct SemanticAnalyser<'ast> {
     ast: &'ast Spanned<Ast<'ast>>,
-    builtins: &'ast Builtins<'ast>,
     scope_reference_map: ScopeReferenceMap,
     function_map: FunctionMap<'ast>,
     class_map: ClassMap<'ast>,
@@ -40,10 +38,9 @@ pub struct MemberAccessMetadata<'ast> {
 
 // TODO: what can we throw away / simplify from this??
 impl<'ast> SemanticAnalyser<'ast> {
-    pub fn new(ast: &'ast Spanned<Ast<'ast>>, builtins: &'ast Builtins<'ast>) -> Self {
+    pub fn new(ast: &'ast Spanned<Ast<'ast>>) -> Self {
         Self {
             ast,
-            builtins,
             scope_reference_map: Default::default(),
             function_map: Default::default(),
             class_map: Default::default(),
@@ -70,7 +67,6 @@ impl<'ast> SemanticAnalyser<'ast> {
 
         self.function_map = {
             let mut function_collector = FunctionCollectorPass::new(&mut semantic_error_list);
-            function_collector.register_internal_functions(self.builtins);
             function_collector.visit(self.ast);
             function_collector.into_function_map()
         };
