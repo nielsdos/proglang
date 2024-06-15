@@ -350,7 +350,7 @@ pub fn parse(filename: Rc<str>, input: &str, options: ParserOptions) -> Option<S
                 }
             }
         });
-        let token_stream = Stream::from_iter(Box::new(iterator)).boxed();
+        let token_stream = Stream::from_iter(iterator).boxed();
         // Feed converted token stream into parser
         let (ast, parse_errors) = parser().parse(token_stream.spanned((input.len()..input.len()).into())).into_output_errors();
         (parse_errors, ast)
