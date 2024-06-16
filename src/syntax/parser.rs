@@ -193,7 +193,7 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
 
         let do_while_loop = just(Token::Do)
             .ignore_then(just(Token::BlockStart))
-            .ignore_then(statement_list)
+            .ignore_then(statement_list.clone())
             .then_ignore(just(Token::BlockEnd))
             .then_ignore(just(Token::While))
             .then(parse_expression())
@@ -204,6 +204,21 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
                         condition: Box::new(condition),
                         body_statements: Box::new(body_statements),
                         check_condition_first: false,
+                    }),
+                    extra.span(),
+                )
+            });
+
+        let infinite_loop = just(Token::Loop)
+            .ignore_then(just(Token::BlockStart))
+            .ignore_then(statement_list)
+            .then_ignore(just(Token::BlockEnd))
+            .map_with(|body_statements, extra| {
+                (
+                    Ast::WhileLoop(WhileLoop {
+                        condition: Box::new((Ast::LiteralBool(LiteralBool(true)), (0..0).into())),
+                        body_statements: Box::new(body_statements),
+                        check_condition_first: true,
                     }),
                     extra.span(),
                 )
@@ -241,7 +256,7 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
 
         let expression_statement = parse_expression().then_ignore(just(Token::StatementEnd));
 
-        let statement = choice((declaration, assignment, while_loop, do_while_loop, if_check, return_, expression_statement));
+        let statement = choice((declaration, assignment, while_loop, do_while_loop, infinite_loop, if_check, return_, expression_statement));
 
         statement.repeated().at_least(1).collect::<Vec<_>>().map(|list| {
             let span = compute_span_over_slice(&list);

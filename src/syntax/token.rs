@@ -40,6 +40,7 @@ pub enum Token<'src> {
     For,
     While,
     Do,
+    Loop,
     Let,
     Mut,
     Fn,
@@ -87,9 +88,9 @@ impl<'src> Display for Token<'src> {
             Token::For => write!(f, "for"),
             Token::While => write!(f, "while"),
             Token::Do => write!(f, "do"),
+            Token::Loop => write!(f, "loop"),
             Token::Let => write!(f, "let"),
             Token::Mut => write!(f, "mut"),
-            Token::StatementEnd => write!(f, "end of statement"),
             Token::Fn => write!(f, "fn"),
             Token::Return => write!(f, "return"),
             Token::Pub => write!(f, "pub"),
@@ -98,6 +99,7 @@ impl<'src> Display for Token<'src> {
             Token::Class => write!(f, "class"),
             Token::Import => write!(f, "import"),
             // TODO: make sure there's no quotes around these in the error reporting
+            Token::StatementEnd => write!(f, "end of statement"),
             Token::BlockStart => write!(f, "start of block"),
             Token::BlockEnd => write!(f, "end of block"),
         }
