@@ -156,6 +156,7 @@ impl<'ctx> Construction<'ctx> {
             Ast::WhileLoop(while_loop) => MidStatement::While(MidWhile {
                 condition: self.construct_from_expression(&while_loop.condition),
                 body_statements: self.construct_from_ast_ensure_statement_list(&while_loop.body_statements),
+                check_condition_first: while_loop.check_condition_first,
             }),
             Ast::FunctionCall(_) => MidStatement::Expression(self.construct_from_expression(statement)),
             _ => unreachable!(),

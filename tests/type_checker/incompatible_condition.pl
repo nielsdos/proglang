@@ -13,3 +13,11 @@ fn while_loop() -> int:
     return 0
 
 # CHECK: {{.+}}: expected a condition of type 'bool', but this condition has type 'int'
+
+fn do_while_loop() -> int:
+    do:
+        return 1
+    while 0
+    return 0
+
+# CHECK: {{.+}}: expected a condition of type 'bool', but this condition has type 'int'

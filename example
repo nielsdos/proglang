@@ -1,7 +1,7 @@
-fn loop() -> int:
+fn loop(mut int i) -> int:
     mut sum = 0
-    mut i = 0
-    while i <= 10:
+    do:
         sum = sum + i
         i = i + 1
+    while i <= 10
     return sum

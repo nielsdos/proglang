@@ -92,6 +92,7 @@ pub struct IfStatement<'src> {
 pub struct WhileLoop<'src> {
     pub condition: Box<Spanned<Ast<'src>>>,
     pub body_statements: Box<Spanned<Ast<'src>>>,
+    pub check_condition_first: bool,
 }
 #[derive(Debug)]
 pub struct ReturnStatement<'src> {

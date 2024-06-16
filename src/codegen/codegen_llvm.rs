@@ -386,7 +386,11 @@ impl<'ctx> CodeGenInner<'ctx> {
                 let body_block = codegen.context.0.append_basic_block(function_context.function_value, "body");
                 let after_loop_block = codegen.context.0.append_basic_block(function_context.function_value, "after_loop");
 
-                function_context.builder.build_unconditional_branch(condition_block).expect("valid builder");
+                if while_loop.check_condition_first {
+                    function_context.builder.build_unconditional_branch(condition_block).expect("valid builder");
+                } else {
+                    function_context.builder.build_unconditional_branch(body_block).expect("valid builder");
+                }
 
                 function_context.builder.position_at_end(condition_block);
                 let condition = self.emit_expression(&while_loop.condition, function_context);

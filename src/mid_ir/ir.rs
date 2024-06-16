@@ -95,6 +95,7 @@ pub struct MidIf<'t> {
 pub struct MidWhile<'t> {
     pub condition: MidExpression<'t>,
     pub body_statements: MidStatementList<'t>,
+    pub check_condition_first: bool,
 }
 
 #[derive(Debug)]

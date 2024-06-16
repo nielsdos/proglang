@@ -178,13 +178,32 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
         let while_loop = just(Token::While)
             .ignore_then(parse_expression())
             .then_ignore(just(Token::BlockStart))
-            .then(statement_list)
+            .then(statement_list.clone())
             .then_ignore(just(Token::BlockEnd))
             .map_with(|(condition, body_statements), extra| {
                 (
                     Ast::WhileLoop(WhileLoop {
                         condition: Box::new(condition),
                         body_statements: Box::new(body_statements),
+                        check_condition_first: true,
+                    }),
+                    extra.span(),
+                )
+            });
+
+        let do_while_loop = just(Token::Do)
+            .ignore_then(just(Token::BlockStart))
+            .ignore_then(statement_list)
+            .then_ignore(just(Token::BlockEnd))
+            .then_ignore(just(Token::While))
+            .then(parse_expression())
+            .then_ignore(just(Token::StatementEnd))
+            .map_with(|(body_statements, condition), extra| {
+                (
+                    Ast::WhileLoop(WhileLoop {
+                        condition: Box::new(condition),
+                        body_statements: Box::new(body_statements),
+                        check_condition_first: false,
                     }),
                     extra.span(),
                 )
@@ -222,7 +241,7 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
 
         let expression_statement = parse_expression().then_ignore(just(Token::StatementEnd));
 
-        let statement = choice((declaration, assignment, while_loop, if_check, return_, expression_statement));
+        let statement = choice((declaration, assignment, while_loop, do_while_loop, if_check, return_, expression_statement));
 
         statement.repeated().at_least(1).collect::<Vec<_>>().map(|list| {
             let span = compute_span_over_slice(&list);
