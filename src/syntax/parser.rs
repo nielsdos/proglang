@@ -19,6 +19,7 @@ use std::rc::Rc;
 
 pub struct ParserOptions {
     pub dump_token_tree: bool,
+    pub machine_friendly_output: bool,
 }
 
 type ParserInput<'tokens, 'src> = SpannedInput<Token<'src>, Span, BoxedStream<'tokens, Spanned<Token<'src>>>>;
@@ -353,7 +354,7 @@ pub fn parse(filename: Rc<str>, input: &str, options: ParserOptions) -> Option<S
         let token_stream = Stream::from_iter(iterator).boxed();
         // Feed converted token stream into parser
         let (ast, parse_errors) = parser().parse(token_stream.spanned((input.len()..input.len()).into())).into_output_errors();
-        (parse_errors, ast)
+        (parse_errors, if lexer_errors.is_empty() { ast } else { None })
     } else {
         (vec![], None)
     };
@@ -363,11 +364,16 @@ pub fn parse(filename: Rc<str>, input: &str, options: ParserOptions) -> Option<S
         .map(|e| e.map_token(|character| character.to_string()))
         .chain(parse_errors.into_iter().map(|e| e.map_token(|token| token.to_string())))
         .for_each(|e| {
-            let _ = Report::build(ReportKind::Error, filename.clone(), e.span().start)
-                .with_message(e.to_string())
-                .with_label(Label::new((filename.clone(), e.span().into_range())).with_color(Color::Red))
-                .finish()
-                .print(sources([(filename.clone(), input)]));
+            if options.machine_friendly_output {
+                eprintln!("{}:{:?}: {}", filename, e.span(), e.to_string());
+            } else {
+                Report::build(ReportKind::Error, filename.clone(), e.span().start)
+                    .with_message(e.to_string())
+                    .with_label(Label::new((filename.clone(), e.span().into_range())).with_color(Color::Red))
+                    .finish()
+                    .eprint(sources([(filename.clone(), input)]))
+                    .expect("should be able to write to stderr")
+            }
         });
 
     ast

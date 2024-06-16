@@ -52,6 +52,7 @@ fn main() -> ExitCode {
         &input,
         ParserOptions {
             dump_token_tree: args.dump_token_tree,
+            machine_friendly_output: args.machine_friendly_output,
         },
     );
     if let Some(ast) = ast {
@@ -65,9 +66,9 @@ fn main() -> ExitCode {
         if args.machine_friendly_output {
             for error in semantic_analyser.errors() {
                 if let Some(note) = error.note() {
-                    println!("Note: {}:{:?}: {}", filename, note.span(), note.error_text());
+                    eprintln!("Note: {}:{:?}: {}", filename, note.span(), note.error_text());
                 }
-                println!("{}:{:?}: {}", filename, error.span(), error.error_text());
+                eprintln!("{}:{:?}: {}", filename, error.span(), error.error_text());
             }
         } else {
             for error in semantic_analyser.errors() {
