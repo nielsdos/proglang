@@ -25,10 +25,47 @@ impl<T> Container<Vec<T>> for FlatVec<T> {
 }
 
 pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra::Err<Rich<'src, char, Span>>> {
-    // TODO: these two can fail, handle them gracefully
-    // TODO: https://github.com/zesterer/chumsky/pull/462
+    // TODO: this can fail and should support '_' and e-notation
     let dbl = text::int(10).then(just('.')).then(text::digits(10)).to_slice().map(|x| Token::LiteralFloat(f64::from_str(x).unwrap()));
-    let int = text::int(10).from_str().unwrapped().map(Token::LiteralInt);
+
+    let lex_digits = move |radix: u32, forbid_leading_zeros: bool| {
+        any()
+            .filter(move |c: &char| c.is_digit(radix))
+            .then(just('_').or_not().ignore_then(any().filter(move |&c: &char| c.is_digit(radix) || c == '_')).repeated())
+            .to_slice()
+            // A failure here isn't fatal for the parsing process, try to continue
+            .validate(move |value: &str, extra, emitter| {
+                if forbid_leading_zeros && value.starts_with('0') && value.len() > 1 {
+                    emitter.emit(Rich::<'src, char, Span>::custom(
+                        extra.span(),
+                        "leading zeros in integer literals are not allowed, use an 0o prefix for octal integers",
+                    ));
+                    return Token::LiteralInt(0);
+                }
+
+                let parse_result = if value.contains('_') {
+                    let value: String = value.chars().filter(move |&c: &char| c != '_').collect();
+                    i64::from_str_radix(&value, radix)
+                } else {
+                    i64::from_str_radix(value, radix)
+                };
+
+                match parse_result {
+                    Err(_) => {
+                        emitter.emit(Rich::<'src, char, Span>::custom(extra.span(), "integer literal overflow"));
+                        Token::LiteralInt(0)
+                    },
+                    Ok(number) => Token::LiteralInt(number),
+                }
+            })
+    };
+
+    let int = choice((
+        just("0x").ignore_then(lex_digits(16, false)),
+        just("0o").ignore_then(lex_digits(8, false)),
+        just("0b").ignore_then(lex_digits(2, false)),
+        lex_digits(10, true),
+    )).boxed();
 
     let multi_operator = choice((
         just("**").to(Token::DoubleStar),
