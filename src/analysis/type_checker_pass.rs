@@ -2,10 +2,7 @@ use crate::analysis::scope_resolution_pass::ScopeReferenceMap;
 use crate::analysis::semantic_analysis::{ClassMap, MemberAccessMetadata};
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
-use crate::syntax::ast::{
-    Assignment, BinaryOperation, BinaryOperationKind, BindingType, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess,
-    ReturnStatement, StatementList, UnaryOperation,
-};
+use crate::syntax::ast::{Assignment, BinaryOperation, BinaryOperationKind, BindingType, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList, UnaryOperation, WhileLoop};
 use crate::syntax::ast::{Ast, Declaration};
 use crate::syntax::span::{combine_span, Span, Spanned};
 use crate::types::function_info::{FunctionInfo, VariableUpdateError};
@@ -310,6 +307,19 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
         if let Some(else_statements) = &node.else_statements {
             self.visit(else_statements);
         }
+        Type::Void
+    }
+
+    fn visit_while_statement(&mut self, _: Handle, node: &'ast WhileLoop<'ast>, _: Span) -> Type<'ast> {
+        let condition_type = self.visit(&node.condition);
+        if condition_type.is_error() {
+            return Type::Error;
+        }
+        if condition_type != Type::Bool {
+            self.semantic_error_list
+                .report_error(node.condition.1, format!("expected a condition of type 'bool', but this condition has type '{}'", condition_type));
+        }
+        self.visit(&node.body_statements);
         Type::Void
     }
 

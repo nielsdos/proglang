@@ -54,7 +54,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
                     Err(_) => {
                         emitter.emit(Rich::<'src, char, Span>::custom(extra.span(), "integer literal overflow"));
                         Token::LiteralInt(0)
-                    },
+                    }
                     Ok(number) => Token::LiteralInt(number),
                 }
             })
@@ -65,7 +65,8 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<TokenTree<'src>>, extra
         just("0o").ignore_then(lex_digits(8, false)),
         just("0b").ignore_then(lex_digits(2, false)),
         lex_digits(10, true),
-    )).boxed();
+    ))
+    .boxed();
 
     let multi_operator = choice((
         just("**").to(Token::DoubleStar),

@@ -1,7 +1,4 @@
-use crate::syntax::ast::{
-    Assignment, Ast, BinaryOperation, Class, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement,
-    StatementList, UnaryOperation,
-};
+use crate::syntax::ast::{Assignment, Ast, BinaryOperation, Class, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList, UnaryOperation, WhileLoop};
 use crate::syntax::span::{Span, Spanned};
 use crate::util::handle::Handle;
 
@@ -20,6 +17,7 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
             Ast::StatementList(inner) => self.visit_statement_list(handle, inner, node.1),
             Ast::FunctionDeclaration(inner) => self.visit_function_declaration(handle, inner, node.1),
             Ast::IfStatement(inner) => self.visit_if_statement(handle, inner, node.1),
+            Ast::WhileLoop(inner) => self.visit_while_statement(handle, inner, node.1),
             Ast::ReturnStatement(inner) => self.visit_return_statement(handle, inner, node.1),
             Ast::FunctionCall(inner) => self.visit_function_call(handle, inner, node.1),
             Ast::Class(inner) => self.visit_class(handle, inner, node.1),
@@ -83,6 +81,12 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
         if let Some(else_statements) = node.else_statements.as_ref() {
             self.visit(else_statements);
         }
+        T::default()
+    }
+
+    fn visit_while_statement(&mut self, _: Handle, node: &'ast WhileLoop<'ast>, _: Span) -> T {
+        self.visit(&node.condition);
+        self.visit(&node.body_statements);
         T::default()
     }
 

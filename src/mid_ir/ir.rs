@@ -92,11 +92,18 @@ pub struct MidIf<'t> {
 }
 
 #[derive(Debug)]
+pub struct MidWhile<'t> {
+    pub condition: MidExpression<'t>,
+    pub body_statements: MidStatementList<'t>,
+}
+
+#[derive(Debug)]
 pub enum MidStatement<'t> {
     StatementList(MidStatementList<'t>),
     Assignment(MidAssignment<'t>),
     Return(MidReturn<'t>),
     If(MidIf<'t>),
+    While(MidWhile<'t>),
     Expression(MidExpression<'t>),
 }
 

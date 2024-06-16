@@ -86,6 +86,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
             pm.add_partially_inline_lib_calls_pass();
             pm.add_licm_pass();
             pm.add_loop_deletion_pass();
+            pm.add_loop_unroll_pass();
             pm.add_loop_rotate_pass();
             pm.add_memcpy_optimize_pass();
             pm.add_reassociate_pass();
@@ -380,6 +381,25 @@ impl<'ctx> CodeGenInner<'ctx> {
 
                 function_context.builder.position_at_end(after_if_block);
             }
+            MidStatement::While(while_loop) => {
+                let condition_block = codegen.context.0.append_basic_block(function_context.function_value, "condition");
+                let body_block = codegen.context.0.append_basic_block(function_context.function_value, "body");
+                let after_loop_block = codegen.context.0.append_basic_block(function_context.function_value, "after_loop");
+
+                function_context.builder.build_unconditional_branch(condition_block).expect("valid builder");
+
+                function_context.builder.position_at_end(condition_block);
+                let condition = self.emit_expression(&while_loop.condition, function_context);
+                function_context.builder.build_conditional_branch(condition.into_int_value(), body_block, after_loop_block).expect("valid builder");
+
+                function_context.builder.position_at_end(body_block);
+                self.emit_statement_list(&while_loop.body_statements, function_context, codegen);
+                if function_context.is_bb_unterminated() {
+                    function_context.builder.build_unconditional_branch(condition_block).expect("valid builder");
+                }
+
+                function_context.builder.position_at_end(after_loop_block);
+            },
             MidStatement::Expression(expression) => {
                 self.emit_expression(expression, function_context);
             }

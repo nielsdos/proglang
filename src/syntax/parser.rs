@@ -2,7 +2,7 @@
 
 use crate::syntax::ast::{
     Assignment, Ast, BinaryOperation, BinaryOperationKind, BindingType, Class, ClassField, Declaration, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool,
-    LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind,
+    LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind, WhileLoop,
 };
 use crate::syntax::lexer::lexer;
 use crate::syntax::span::compute_span_over_slice;
@@ -159,7 +159,7 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
             .then(
                 just(Token::Else)
                     .ignore_then(just(Token::BlockStart))
-                    .ignore_then(statement_list)
+                    .ignore_then(statement_list.clone())
                     .then_ignore(just(Token::BlockEnd))
                     .or_not(),
             )
@@ -172,6 +172,21 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
                         else_statements: else_statements.map(Box::new),
                     }),
                     span,
+                )
+            });
+
+        let while_loop = just(Token::While)
+            .ignore_then(parse_expression())
+            .then_ignore(just(Token::BlockStart))
+            .then(statement_list)
+            .then_ignore(just(Token::BlockEnd))
+            .map_with(|(condition, body_statements), extra| {
+                (
+                    Ast::WhileLoop(WhileLoop {
+                        condition: Box::new(condition),
+                        body_statements: Box::new(body_statements),
+                    }),
+                    extra.span(),
                 )
             });
 
@@ -207,7 +222,7 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
 
         let expression_statement = parse_expression().then_ignore(just(Token::StatementEnd));
 
-        let statement = choice((declaration, assignment, if_check, return_, expression_statement));
+        let statement = choice((declaration, assignment, while_loop, if_check, return_, expression_statement));
 
         statement.repeated().at_least(1).collect::<Vec<_>>().map(|list| {
             let span = compute_span_over_slice(&list);
