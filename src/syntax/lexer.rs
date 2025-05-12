@@ -94,7 +94,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, 
         _ => Token::Identifier(ident),
     });
 
-    let comment = just('#').then(any().and_is(text::newline().not()).repeated());
+    let comment = just('#').then(any().and_is(text::newline().not()).repeated()).padded();
 
     let token = choice((dbl, int, ampersand, dot, comma, parens, multi_operator, compound_assignment, single_operator, keyword_or_identifier));
 

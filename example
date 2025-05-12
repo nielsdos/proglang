@@ -1,3 +1,5 @@
+# Foo
+
 fn infinite_loop(mut int i) -> int
     loop
         if i > 10 then
