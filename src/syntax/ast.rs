@@ -123,6 +123,15 @@ pub struct Class<'src> {
     pub name: &'src str,
     pub fields: Vec<Spanned<ClassField<'src>>>,
 }
+#[derive(Debug)]
+pub struct TableField<'src> {
+    pub name: Spanned<Identifier<'src>>,
+    pub initializer: Box<Spanned<Ast<'src>>>,
+}
+#[derive(Debug)]
+pub struct TableConstructor<'src> {
+    pub fields: Vec<TableField<'src>>,
+}
 
 #[derive(Debug)]
 pub enum Ast<'src> {
@@ -142,6 +151,7 @@ pub enum Ast<'src> {
     FunctionCall(FunctionCall<'src>),
     MemberAccess(MemberAccess<'src>),
     Class(Class<'src>),
+    TableConstructor(TableConstructor<'src>),
     /// Special AST nodes used for internal functions
     BuiltinSiToFp(Handle),
     /// Placeholder, useful for development purposes.

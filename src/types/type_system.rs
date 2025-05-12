@@ -12,6 +12,7 @@ pub enum Type<'a> {
     Int,
     Double,
     Bool,
+    Table,
     Void,
     Function(Rc<FunctionType<'a>>),
     UserType(&'a str),
@@ -26,8 +27,9 @@ impl<'a> Display for Type<'a> {
             Type::Int => write!(f, "int"),
             Type::Double => write!(f, "float"),
             Type::Bool => write!(f, "bool"),
+            Type::Table => write!(f, "table"),
             Type::Void => write!(f, "void"),
-            Type::Error => write!(f, "?"),
+            Type::Error => write!(f, "<error>"),
             Type::Function(func) => {
                 write!(f, "fn(")?;
                 for (i, arg) in func.arg_types.iter().enumerate() {

@@ -1,9 +1,6 @@
 // Based on the sample code from https://github.com/zesterer/chumsky/blob/main/examples/nano_rust.rs
 
-use crate::syntax::ast::{
-    Assignment, Ast, BinaryOperation, BinaryOperationKind, BindingType, Class, ClassField, Declaration, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool,
-    LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind, WhileLoop,
-};
+use crate::syntax::ast::{Assignment, Ast, BinaryOperation, BinaryOperationKind, BindingType, Class, ClassField, Declaration, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList, TableConstructor, TableField, UnaryOperation, UnaryOperationKind, WhileLoop};
 use crate::syntax::span::compute_span_over_slice;
 use crate::syntax::span::{Span, Spanned};
 use crate::syntax::token::Token;
@@ -32,8 +29,28 @@ where
 
         let identifier = identifier_raw.map(Ast::Identifier);
 
+        let table_field = identifier_raw
+            .map_with(|identifier, extra| (identifier, extra.span()))
+            .then_ignore(just(Token::Operator('=')))
+            .then(expression.clone())
+            .map(|(name, initializer)| {
+                TableField {
+                    name, initializer: Box::new(initializer)
+                }
+            });
+
+        let table_constructor = just(Token::LeftBrace)
+            .ignore_then(table_field.separated_by(just(Token::Comma)).allow_trailing().collect::<Vec<_>>())
+            .then_ignore(just(Token::RightBrace))
+            .map(|fields| {
+                Ast::TableConstructor(TableConstructor {
+                    fields,
+                })
+            });
+
         let atom_no_call = literal
             .or(identifier)
+            .or(table_constructor)
             .map_with(|ast, extra| (ast, extra.span()))
             .or(expression.clone().delimited_by(just(Token::LeftParen), just(Token::RightParen)));
 
@@ -251,6 +268,7 @@ where
             Token::Identifier("float") => Type::Double,
             Token::Identifier("int") => Type::Int,
             Token::Identifier("bool") => Type::Bool,
+            Token::Identifier("table") => Type::Table,
         };
 
         let user_ty_name = select! {
