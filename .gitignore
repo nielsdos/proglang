@@ -2,8 +2,8 @@
 /.idea
 
 /output.s
-/tests/**/*.s
 /test
+/compiler/tests/**/*.s
 
-/tests/**/Output
-/tests/**/.lit_test_times.txt
+/compiler/tests/**/Output
+/compiler/tests/**/.lit_test_times.txt

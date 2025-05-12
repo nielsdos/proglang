@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
-extern int64_t factorial(int64_t);
+extern int32_t rt_test(int32_t);
 
 int main() {
-	printf("%ld\n", factorial(6));
+	printf("%d\n", rt_test(4));
 	return 0;
 }
