@@ -189,7 +189,6 @@ where
             .ignore_then(statement_list.clone())
             .then_ignore(just(Token::While))
             .then(parse_expression())
-            .then_ignore(just(Token::StatementEnd))
             .map_with(|(body_statements, condition), extra| {
                 (
                     Ast::WhileLoop(WhileLoop {
@@ -216,7 +215,6 @@ where
             .map_with(|ident, extra| (ident, extra.span()))
             .then_ignore(just(Token::Operator('=')))
             .then(parse_expression())
-            .then_ignore(just(Token::StatementEnd))
             .map_with(|(ident, expr), extra| (ident, expr, extra.span()))
             .map(|(ident, expr, span)| (Ast::Assignment(Assignment(ident, Box::new(expr))), span));
 
@@ -224,7 +222,6 @@ where
             .then(identifier.map_with(|ident, extra| (ident, extra.span())))
             .then_ignore(just(Token::Operator('=')))
             .then(parse_expression())
-            .then_ignore(just(Token::StatementEnd))
             .map_with(|((binding, ident), expr), extra| (binding, ident, expr, extra.span()))
             .map(|(binding, ident, expr, span)| {
                 (
@@ -239,10 +236,9 @@ where
         let return_ = just(Token::Return)
             .ignore_then(parse_expression().or_not())
             .map_with(|expression, extra| (expression, extra.span()))
-            .then_ignore(just(Token::StatementEnd))
             .map(|(expression, span)| (Ast::ReturnStatement(ReturnStatement { value: expression.map(Box::new) }), span));
 
-        let expression_statement = parse_expression().then_ignore(just(Token::StatementEnd));
+        let expression_statement = parse_expression();
 
         let statement = choice((declaration, assignment, while_loop, do_while_loop, infinite_loop, if_check, return_, expression_statement));
 
@@ -340,9 +336,8 @@ where
             (Ast::FunctionDeclaration(declaration), span.into())
         });
 
-    let class_field_declarations = parse_type()
+    /*let class_field_declarations = parse_type()
         .then(identifier)
-        .then_ignore(just(Token::StatementEnd))
         .map_with(|(ty, name), extra| {
             let class_field = ClassField { name, ty };
             (class_field, extra.span())
@@ -358,7 +353,8 @@ where
         .then_ignore(just(Token::End))
         .map(|((name, fields), span)| (Ast::Class(Class { name, fields }), span));
 
-    function_declaration.or(class_declaration)
+    function_declaration.or(class_declaration)*/
+    function_declaration
 }
 
 fn parser<'src, I>() -> impl Parser<'src, I, Spanned<Ast<'src>>, ParserExtra<'src>>

@@ -1,28 +1,7 @@
 use crate::syntax::span::{Span, Spanned};
 use crate::syntax::token::Token;
-use chumsky::container::Container;
 use chumsky::prelude::*;
 use std::str::FromStr;
-
-struct FlatVec<T> {
-    inner: Vec<T>,
-}
-
-impl<T> Default for FlatVec<T> {
-    fn default() -> Self {
-        Self { inner: Vec::new() }
-    }
-}
-
-impl<T> Container<Vec<T>> for FlatVec<T> {
-    fn with_capacity(n: usize) -> Self {
-        Self { inner: Vec::with_capacity(n) }
-    }
-
-    fn push(&mut self, item: Vec<T>) {
-        self.inner.extend(item);
-    }
-}
 
 pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, extra::Err<Rich<'src, char, Span>>> {
     // TODO: this can fail and should support '_' and e-notation
@@ -115,14 +94,13 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, 
         _ => Token::Identifier(ident),
     });
 
-    // TODO
-    //let comment = just('#').padded_by(text::inline_whitespace()).then(any().and_is(text::newline().not()).repeated());
+    let comment = just('#').then(any().and_is(text::newline().not()).repeated());
 
     let token = choice((dbl, int, ampersand, dot, comma, parens, multi_operator, compound_assignment, single_operator, keyword_or_identifier));
 
-    let statement_end = text::newline().to(Token::StatementEnd);
-
-    token.or(statement_end)
+    token
+        .padded_by(comment.repeated())
+        .padded()
         .map_with(|tok, e| (tok, e.span()))
         .recover_with(skip_then_retry_until(any().ignored(), end()))
         .repeated()

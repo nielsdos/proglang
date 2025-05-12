@@ -1,7 +1,11 @@
 fn infinite_loop(mut int i) -> int
     loop
-        if i > 10:
+        if i > 10 then
+            i = i * 2
+            i = i + 1
             return i
+        end
         i = i + 1
     end
     return 0
+end

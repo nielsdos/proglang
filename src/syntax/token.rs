@@ -11,7 +11,6 @@ pub enum Token<'src> {
     Comma,
     Dot,
     Ampersand,
-    StatementEnd,
     LeftParen,
     RightParen,
     DoubleStar,
@@ -85,7 +84,6 @@ impl<'src> Display for Token<'src> {
             Token::Fn => write!(f, "fn"),
             Token::Return => write!(f, "return"),
             Token::Class => write!(f, "class"),
-            Token::StatementEnd => write!(f, "end of statement"),
         }
     }
 }
