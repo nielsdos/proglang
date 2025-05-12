@@ -394,7 +394,10 @@ impl<'ctx> CodeGenInner<'ctx> {
 
                 function_context.builder.position_at_end(condition_block);
                 let condition = self.emit_expression(&while_loop.condition, function_context);
-                function_context.builder.build_conditional_branch(condition.into_int_value(), body_block, after_loop_block).expect("valid builder");
+                function_context
+                    .builder
+                    .build_conditional_branch(condition.into_int_value(), body_block, after_loop_block)
+                    .expect("valid builder");
 
                 function_context.builder.position_at_end(body_block);
                 self.emit_statement_list(&while_loop.body_statements, function_context, codegen);
@@ -403,7 +406,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                 }
 
                 function_context.builder.position_at_end(after_loop_block);
-            },
+            }
             MidStatement::Expression(expression) => {
                 self.emit_expression(expression, function_context);
             }

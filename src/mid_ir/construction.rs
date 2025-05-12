@@ -1,5 +1,8 @@
 use crate::analysis::semantic_analysis::SemanticAnalyser;
-use crate::mid_ir::ir::{MidAssignment, MidBinaryOperation, MidDirectCall, MidExpression, MidFunction, MidIf, MidIndirectCall, MidMemberReference, MidPointerLoad, MidReturn, MidStatement, MidStatementList, MidTarget, MidVariableReference, MidWhile};
+use crate::mid_ir::ir::{
+    MidAssignment, MidBinaryOperation, MidDirectCall, MidExpression, MidFunction, MidIf, MidIndirectCall, MidMemberReference, MidPointerLoad, MidReturn, MidStatement, MidStatementList, MidTarget,
+    MidVariableReference, MidWhile,
+};
 use crate::syntax::ast::{Assignment, Ast, Declaration, FunctionCall, LiteralBool, LiteralFloat, LiteralInt, StatementList, UnaryOperationKind};
 use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
@@ -147,7 +150,7 @@ impl<'ctx> Construction<'ctx> {
                     target: MidTarget::Variable(MidVariableReference { variable_index }),
                     value: self.construct_from_expression(expression),
                 })
-            },
+            }
             Ast::IfStatement(if_statement) => MidStatement::If(MidIf {
                 condition: self.construct_from_expression(&if_statement.condition),
                 then_statements: self.construct_from_ast_ensure_statement_list(&if_statement.then_statements),

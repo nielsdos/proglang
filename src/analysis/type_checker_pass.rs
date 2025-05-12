@@ -2,7 +2,10 @@ use crate::analysis::scope_resolution_pass::ScopeReferenceMap;
 use crate::analysis::semantic_analysis::{ClassMap, MemberAccessMetadata};
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
-use crate::syntax::ast::{Assignment, BinaryOperation, BinaryOperationKind, BindingType, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList, UnaryOperation, WhileLoop};
+use crate::syntax::ast::{
+    Assignment, BinaryOperation, BinaryOperationKind, BindingType, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess,
+    ReturnStatement, StatementList, UnaryOperation, WhileLoop,
+};
 use crate::syntax::ast::{Ast, Declaration};
 use crate::syntax::span::{combine_span, Span, Spanned};
 use crate::types::function_info::{FunctionInfo, VariableUpdateError};

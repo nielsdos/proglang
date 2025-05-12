@@ -7,26 +7,25 @@ use crate::syntax::ast::{
 use crate::syntax::lexer::lexer;
 use crate::syntax::span::compute_span_over_slice;
 use crate::syntax::span::{Span, Spanned};
-use crate::syntax::token::{Token, TokenTree};
+use crate::syntax::token::Token;
 use crate::types::function_info::ArgumentInfo;
 use crate::types::type_system::{FunctionType, Type};
 use ariadne::{sources, Color, Label, Report, ReportKind};
-use chumsky::input::{BoxedStream, SpannedInput, Stream};
+use chumsky::input::ValueInput;
 use chumsky::prelude::*;
-use std::collections::VecDeque;
-use std::iter;
 use std::rc::Rc;
 
 pub struct ParserOptions {
-    pub dump_token_tree: bool,
+    pub dump_tokens: bool,
     pub machine_friendly_output: bool,
 }
 
-type ParserInput<'tokens, 'src> = SpannedInput<Token<'src>, Span, BoxedStream<'tokens, Spanned<Token<'src>>>>;
+type ParserExtra<'src> = extra::Err<Rich<'src, Token<'src>, Span>>;
 
-type ParserExtra<'tokens, 'src> = extra::Err<Rich<'tokens, Token<'src>, Span>>;
-
-fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>> + Clone {
+fn parse_expression<'src, I>() -> impl Parser<'src, I, Spanned<Ast<'src>>, ParserExtra<'src>> + Clone
+where
+    I: ValueInput<'src, Token = Token<'src>, Span = Span>,
+{
     recursive(|expression| {
         let literal = select! {
             Token::LiteralInt(int) => Ast::LiteralInt(LiteralInt(int)),
@@ -83,28 +82,26 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
             (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), op, Box::new(rhs))), span.into())
         };
 
-        let unary_expression = recursive(
-            |unary_expression: Recursive<dyn Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>>>| {
-                let unary_operation = just(Token::Operator('-'))
-                    .to(UnaryOperationKind::Minus)
-                    .or(just(Token::Operator('+')).to(UnaryOperationKind::Plus))
-                    .map_with(|kind, extra| {
-                        let span: Span = extra.span();
-                        (kind, span)
-                    })
-                    .then(unary_expression.clone())
-                    .map(|(kind, rhs)| {
-                        let span: Span = (kind.1.start..rhs.1.end).into();
-                        (Ast::UnaryOperation(UnaryOperation(kind.0, Box::new(rhs))), span)
-                    });
+        let unary_expression = recursive(|unary_expression: Recursive<dyn Parser<'src, I, Spanned<Ast<'src>>, ParserExtra<'src>>>| {
+            let unary_operation = just(Token::Operator('-'))
+                .to(UnaryOperationKind::Minus)
+                .or(just(Token::Operator('+')).to(UnaryOperationKind::Plus))
+                .map_with(|kind, extra| {
+                    let span: Span = extra.span();
+                    (kind, span)
+                })
+                .then(unary_expression.clone())
+                .map(|(kind, rhs)| {
+                    let span: Span = (kind.1.start..rhs.1.end).into();
+                    (Ast::UnaryOperation(UnaryOperation(kind.0, Box::new(rhs))), span)
+                });
 
-                let power = primary
-                    .clone()
-                    .foldl(just(Token::DoubleStar).to(BinaryOperationKind::Power).then(unary_expression).repeated(), map_binary_operation);
+            let power = primary
+                .clone()
+                .foldl(just(Token::DoubleStar).to(BinaryOperationKind::Power).then(unary_expression).repeated(), map_binary_operation);
 
-                unary_operation.or(power)
-            },
-        )
+            unary_operation.or(power)
+        })
         .boxed();
 
         let product_or_divide = unary_expression.clone().foldl(
@@ -145,7 +142,10 @@ fn parse_expression<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInpu
     })
 }
 
-fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>> {
+fn parse_statement_list<'src, I>() -> impl Parser<'src, I, Spanned<Ast<'src>>, ParserExtra<'src>>
+where
+    I: ValueInput<'src, Token = Token<'src>, Span = Span>,
+{
     recursive(|statement_list| {
         let identifier = select! {
             Token::Identifier(ident) => ident,
@@ -153,16 +153,10 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
 
         let if_check = just(Token::If)
             .ignore_then(parse_expression())
-            .then_ignore(just(Token::BlockStart))
+            .then_ignore(just(Token::Then))
             .then(statement_list.clone())
-            .then_ignore(just(Token::BlockEnd))
-            .then(
-                just(Token::Else)
-                    .ignore_then(just(Token::BlockStart))
-                    .ignore_then(statement_list.clone())
-                    .then_ignore(just(Token::BlockEnd))
-                    .or_not(),
-            )
+            .then_ignore(just(Token::End))
+            .then(just(Token::Else).ignore_then(statement_list.clone()).then_ignore(just(Token::End)).or_not())
             .map_with(|((condition, then_statements), else_statements), extra| (condition, then_statements, else_statements, extra.span()))
             .map(|(condition, then_statements, else_statements, span)| {
                 (
@@ -177,9 +171,9 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
 
         let while_loop = just(Token::While)
             .ignore_then(parse_expression())
-            .then_ignore(just(Token::BlockStart))
+            .then_ignore(just(Token::Do))
             .then(statement_list.clone())
-            .then_ignore(just(Token::BlockEnd))
+            .then_ignore(just(Token::End))
             .map_with(|(condition, body_statements), extra| {
                 (
                     Ast::WhileLoop(WhileLoop {
@@ -192,9 +186,7 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
             });
 
         let do_while_loop = just(Token::Do)
-            .ignore_then(just(Token::BlockStart))
             .ignore_then(statement_list.clone())
-            .then_ignore(just(Token::BlockEnd))
             .then_ignore(just(Token::While))
             .then(parse_expression())
             .then_ignore(just(Token::StatementEnd))
@@ -209,20 +201,16 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
                 )
             });
 
-        let infinite_loop = just(Token::Loop)
-            .ignore_then(just(Token::BlockStart))
-            .ignore_then(statement_list)
-            .then_ignore(just(Token::BlockEnd))
-            .map_with(|body_statements, extra| {
-                (
-                    Ast::WhileLoop(WhileLoop {
-                        condition: Box::new((Ast::LiteralBool(LiteralBool(true)), (0..0).into())),
-                        body_statements: Box::new(body_statements),
-                        check_condition_first: true,
-                    }),
-                    extra.span(),
-                )
-            });
+        let infinite_loop = just(Token::Loop).ignore_then(statement_list).then_ignore(just(Token::End)).map_with(|body_statements, extra| {
+            (
+                Ast::WhileLoop(WhileLoop {
+                    condition: Box::new((Ast::LiteralBool(LiteralBool(true)), (0..0).into())),
+                    body_statements: Box::new(body_statements),
+                    check_condition_first: true,
+                }),
+                extra.span(),
+            )
+        });
 
         let assignment = identifier
             .map_with(|ident, extra| (ident, extra.span()))
@@ -265,7 +253,10 @@ fn parse_statement_list<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, Parser
     })
 }
 
-fn parse_type<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Type<'src>, ParserExtra<'tokens, 'src>> {
+fn parse_type<'src, I>() -> impl Parser<'src, I, Type<'src>, ParserExtra<'src>>
+where
+    I: ValueInput<'src, Token = Token<'src>, Span = Span>,
+{
     recursive(|parse_type| {
         let predefined_ty_name = select! {
             Token::Identifier("float") => Type::Double,
@@ -304,7 +295,10 @@ fn parse_type<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tok
     })
 }
 
-fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>> {
+fn parse_declarations<'src, I>() -> impl Parser<'src, I, Spanned<Ast<'src>>, ParserExtra<'src>>
+where
+    I: ValueInput<'src, Token = Token<'src>, Span = Span>,
+{
     let identifier = select! {
         Token::Identifier(ident) => ident,
     };
@@ -312,7 +306,7 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
     let return_type = just(Token::Arrow).ignore_then(parse_type());
 
     let function_declaration = just(Token::Fn)
-        .map_with(|_, extra| extra.span())
+        .map_with(|_, extra| -> Span { extra.span() })
         .then(identifier)
         .then_ignore(just(Token::LeftParen))
         .then(
@@ -333,9 +327,8 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
         )
         .then_ignore(just(Token::RightParen))
         .then(return_type.map_with(|ty, extra| (ty, extra.span())).or_not())
-        .then_ignore(just(Token::BlockStart))
         .then(parse_statement_list())
-        .then_ignore(just(Token::BlockEnd))
+        .then_ignore(just(Token::End))
         .map(move |((((fn_span, fn_name), args), return_type), statements)| {
             let span = fn_span.start..statements.1.end;
             let declaration = FunctionDeclaration {
@@ -360,16 +353,18 @@ fn parse_declarations<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserIn
 
     let class_declaration = just(Token::Class)
         .ignore_then(identifier)
-        .then_ignore(just(Token::BlockStart))
         .then(class_field_declarations)
         .map_with(|data, extra| (data, extra.span()))
-        .then_ignore(just(Token::BlockEnd))
+        .then_ignore(just(Token::End))
         .map(|((name, fields), span)| (Ast::Class(Class { name, fields }), span));
 
     function_declaration.or(class_declaration)
 }
 
-fn parser<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens, 'src>, Spanned<Ast<'src>>, ParserExtra<'tokens, 'src>> {
+fn parser<'src, I>() -> impl Parser<'src, I, Spanned<Ast<'src>>, ParserExtra<'src>>
+where
+    I: ValueInput<'src, Token = Token<'src>, Span = Span>,
+{
     parse_declarations().repeated().collect::<Vec<_>>().map(|declarations| {
         let span = compute_span_over_slice(&declarations);
         (Ast::StatementList(StatementList(declarations)), span)
@@ -377,35 +372,16 @@ fn parser<'tokens, 'src: 'tokens>() -> impl Parser<'tokens, ParserInput<'tokens,
 }
 
 pub fn parse(filename: Rc<str>, input: &str, options: ParserOptions) -> Option<Spanned<Ast>> {
-    let (token_tree, lexer_errors) = lexer().parse(input).into_output_errors();
+    let (token_stream, lexer_errors) = lexer().parse(input).into_output_errors();
 
-    if options.dump_token_tree {
-        println!("{:#?}", token_tree);
+    if options.dump_tokens {
+        println!("{:#?}", token_stream);
     }
 
-    let (parse_errors, ast) = if let Some(token_tree) = token_tree {
-        // Convert token tree into token stream.
-        let mut queue = VecDeque::from_iter(token_tree);
-        let iterator = iter::from_fn(move || loop {
-            let token_tree = queue.pop_front()?;
-            match token_tree {
-                TokenTree::Leaf(token) => break Some(token),
-                TokenTree::Tree(tree) => {
-                    let span: Span = (0..0).into(); // TODO
-                    queue.push_front(TokenTree::Leaf((Token::BlockEnd, span)));
-                    for entry in tree.into_iter().rev() {
-                        queue.push_front(entry);
-                    }
-                    queue.push_front(TokenTree::Leaf((Token::BlockStart, span)));
-                }
-            }
-        });
-        let token_stream = Stream::from_iter(iterator).boxed();
-        // Feed converted token stream into parser
-        let (ast, parse_errors) = parser().parse(token_stream.spanned((input.len()..input.len()).into())).into_output_errors();
-        (parse_errors, if lexer_errors.is_empty() { ast } else { None })
+    let (ast, parse_errors) = if let Some(token_stream) = &token_stream {
+        parser().parse(token_stream.spanned((input.len()..input.len()).into())).into_output_errors()
     } else {
-        (vec![], None)
+        (None, vec![])
     };
 
     lexer_errors
@@ -414,7 +390,7 @@ pub fn parse(filename: Rc<str>, input: &str, options: ParserOptions) -> Option<S
         .chain(parse_errors.into_iter().map(|e| e.map_token(|token| token.to_string())))
         .for_each(|e| {
             if options.machine_friendly_output {
-                eprintln!("{}:{:?}: {}", filename, e.span(), e.to_string());
+                eprintln!("{}:{:?}: {}", filename, e.span(), e);
             } else {
                 Report::build(ReportKind::Error, filename.clone(), e.span().start)
                     .with_message(e.to_string())
@@ -425,5 +401,6 @@ pub fn parse(filename: Rc<str>, input: &str, options: ParserOptions) -> Option<S
             }
         });
 
-    ast
+    //ast
+    None
 }

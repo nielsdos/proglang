@@ -31,8 +31,8 @@ struct Args {
     #[arg(long, help = "Dumps the AST to standard output")]
     dump_ast: bool,
 
-    #[arg(long, help = "Dumps the token tree to standard output")]
-    dump_token_tree: bool,
+    #[arg(long, help = "Dumps the tokens to standard output")]
+    dump_tokens: bool,
 
     #[arg(long, help = "Generate machine-friendly output")]
     machine_friendly_output: bool,
@@ -51,7 +51,7 @@ fn main() -> ExitCode {
         filename.clone(),
         &input,
         ParserOptions {
-            dump_token_tree: args.dump_token_tree,
+            dump_tokens: args.dump_tokens,
             machine_friendly_output: args.machine_friendly_output,
         },
     );

@@ -1,4 +1,7 @@
-use crate::syntax::ast::{Assignment, Ast, BinaryOperation, Class, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList, UnaryOperation, WhileLoop};
+use crate::syntax::ast::{
+    Assignment, Ast, BinaryOperation, Class, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement,
+    StatementList, UnaryOperation, WhileLoop,
+};
 use crate::syntax::span::{Span, Spanned};
 use crate::util::handle::Handle;
 

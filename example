@@ -1,6 +1,7 @@
-fn infinite_loop(mut int i) -> int:
-    loop:
+fn infinite_loop(mut int i) -> int
+    loop
         if i > 10:
             return i
         i = i + 1
+    end
     return 0

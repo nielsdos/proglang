@@ -1,11 +1,4 @@
-use crate::syntax::span::Spanned;
 use std::fmt::{Display, Formatter};
-
-#[derive(Debug)]
-pub enum TokenTree<'src> {
-    Tree(Vec<TokenTree<'src>>),
-    Leaf(Spanned<Token<'src>>),
-}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token<'src> {
@@ -40,18 +33,14 @@ pub enum Token<'src> {
     For,
     While,
     Do,
+    Then,
+    End,
     Loop,
     Let,
     Mut,
     Fn,
     Return,
-    Pub,
-    Prot,
-    Priv,
     Class,
-    Import,
-    BlockStart,
-    BlockEnd,
 }
 
 impl<'src> Display for Token<'src> {
@@ -88,20 +77,15 @@ impl<'src> Display for Token<'src> {
             Token::For => write!(f, "for"),
             Token::While => write!(f, "while"),
             Token::Do => write!(f, "do"),
+            Token::Then => write!(f, "then"),
+            Token::End => write!(f, "end"),
             Token::Loop => write!(f, "loop"),
             Token::Let => write!(f, "let"),
             Token::Mut => write!(f, "mut"),
             Token::Fn => write!(f, "fn"),
             Token::Return => write!(f, "return"),
-            Token::Pub => write!(f, "pub"),
-            Token::Prot => write!(f, "prot"),
-            Token::Priv => write!(f, "priv"),
             Token::Class => write!(f, "class"),
-            Token::Import => write!(f, "import"),
-            // TODO: make sure there's no quotes around these in the error reporting
             Token::StatementEnd => write!(f, "end of statement"),
-            Token::BlockStart => write!(f, "start of block"),
-            Token::BlockEnd => write!(f, "end of block"),
         }
     }
 }
