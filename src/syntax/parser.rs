@@ -4,21 +4,14 @@ use crate::syntax::ast::{
     Assignment, Ast, BinaryOperation, BinaryOperationKind, BindingType, Class, ClassField, Declaration, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool,
     LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList, UnaryOperation, UnaryOperationKind, WhileLoop,
 };
-use crate::syntax::lexer::lexer;
 use crate::syntax::span::compute_span_over_slice;
 use crate::syntax::span::{Span, Spanned};
 use crate::syntax::token::Token;
 use crate::types::function_info::ArgumentInfo;
 use crate::types::type_system::{FunctionType, Type};
-use ariadne::{sources, Color, Label, Report, ReportKind};
 use chumsky::input::ValueInput;
 use chumsky::prelude::*;
 use std::rc::Rc;
-
-pub struct ParserOptions {
-    pub dump_tokens: bool,
-    pub machine_friendly_output: bool,
-}
 
 type ParserExtra<'src> = extra::Err<Rich<'src, Token<'src>, Span>>;
 
@@ -357,7 +350,7 @@ where
     function_declaration
 }
 
-fn parser<'src, I>() -> impl Parser<'src, I, Spanned<Ast<'src>>, ParserExtra<'src>>
+pub fn parser<'src, I>() -> impl Parser<'src, I, Spanned<Ast<'src>>, ParserExtra<'src>>
 where
     I: ValueInput<'src, Token = Token<'src>, Span = Span>,
 {
@@ -365,38 +358,4 @@ where
         let span = compute_span_over_slice(&declarations);
         (Ast::StatementList(StatementList(declarations)), span)
     })
-}
-
-pub fn parse(filename: Rc<str>, input: &str, options: ParserOptions) -> Option<Spanned<Ast>> {
-    let (token_stream, lexer_errors) = lexer().parse(input).into_output_errors();
-
-    if options.dump_tokens {
-        println!("{:#?}", token_stream);
-    }
-
-    let (ast, parse_errors) = if let Some(token_stream) = &token_stream {
-        parser().parse(token_stream.spanned((input.len()..input.len()).into())).into_output_errors()
-    } else {
-        (None, vec![])
-    };
-
-    lexer_errors
-        .into_iter()
-        .map(|e| e.map_token(|character| character.to_string()))
-        .chain(parse_errors.into_iter().map(|e| e.map_token(|token| token.to_string())))
-        .for_each(|e| {
-            if options.machine_friendly_output {
-                eprintln!("{}:{:?}: {}", filename, e.span(), e);
-            } else {
-                Report::build(ReportKind::Error, filename.clone(), e.span().start)
-                    .with_message(e.to_string())
-                    .with_label(Label::new((filename.clone(), e.span().into_range())).with_color(Color::Red))
-                    .finish()
-                    .eprint(sources([(filename.clone(), input)]))
-                    .expect("should be able to write to stderr")
-            }
-        });
-
-    //ast
-    None
 }
