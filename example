@@ -1,11 +1,11 @@
 # Foo
 
-fn create_account() -> table
+fn create_account(): table
     let o = {a=1,}
     return o
 end
 
-fn infinite_loop(mut int i) -> int
+fn infinite_loop(mut int i): int
     loop
         if i > 10 then
             i = i * 2

@@ -54,7 +54,6 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, 
         just("//").to(Token::DoubleSlash),
         just("<=").to(Token::LessThanEqual),
         just(">=").to(Token::GreaterThanEqual),
-        just("->").to(Token::Arrow),
     ));
 
     let compound_assignment = choice((
@@ -70,6 +69,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, 
     let single_operator = one_of("+-*/%=<>").map(Token::Operator);
 
     let ampersand = just('&').to(Token::Ampersand);
+    let colon = just(':').to(Token::Colon);
     let dot = just('.').to(Token::Dot);
     let comma = just(',').to(Token::Comma);
 
@@ -98,7 +98,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, 
 
     let comment = just('#').then(any().and_is(text::newline().not()).repeated()).padded();
 
-    let token = choice((dbl, int, ampersand, dot, comma, parens, braces, multi_operator, compound_assignment, single_operator, keyword_or_identifier));
+    let token = choice((dbl, int, ampersand, colon, dot, comma, parens, braces, multi_operator, compound_assignment, single_operator, keyword_or_identifier));
 
     token
         .padded_by(comment.repeated())

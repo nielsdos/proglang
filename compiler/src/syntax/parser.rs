@@ -29,6 +29,7 @@ where
 
         let identifier = identifier_raw.map(Ast::Identifier);
 
+        // TODO: also support [] notation and optional naming
         let table_field = identifier_raw
             .map_with(|identifier, extra| (identifier, extra.span()))
             .then_ignore(just(Token::Operator('=')))
@@ -290,7 +291,7 @@ where
                     .collect::<Vec<Type>>()
                     .delimited_by(just(Token::LeftParen), just(Token::RightParen)),
             )
-            .then(just(Token::Arrow).ignore_then(parse_type).or_not())
+            .then(just(Token::Colon).ignore_then(parse_type).or_not())
             .map(|(arg_types, return_type)| {
                 Type::Function(Rc::new(FunctionType {
                     arg_types,
@@ -310,7 +311,7 @@ where
         Token::Identifier(ident) => ident,
     };
 
-    let return_type = just(Token::Arrow).ignore_then(parse_type());
+    let return_type = just(Token::Colon).ignore_then(parse_type());
 
     let function_declaration = just(Token::Fn)
         .map_with(|_, extra| -> Span { extra.span() })
