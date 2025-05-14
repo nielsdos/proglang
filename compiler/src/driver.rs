@@ -80,7 +80,7 @@ pub fn driver(filename: Rc<str>, input: Rc<str>, dump_tokens: bool, dump_ast: bo
             let codegen_context = CodeGenContext::default();
             let mut codegen = CodeGen::new(&codegen_context, &mid_functions, optimization_level);
             println!();
-            codegen.codegen_program(semantic_analyser.class_map());
+            codegen.codegen_program();
             codegen.dump();
             ExitCode::from(0)
         } else {

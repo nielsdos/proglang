@@ -22,7 +22,6 @@ pub struct FunctionInfo<'ast> {
     name: &'ast str,
     declaration_handle: Handle,
     function_type: Rc<FunctionType<'ast>>,
-    // TODO: flags field instead?
     always_inline: bool,
 }
 

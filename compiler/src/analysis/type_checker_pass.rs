@@ -1,10 +1,10 @@
 use crate::analysis::scope_resolution_pass::ScopeReferenceMap;
-use crate::analysis::semantic_analysis::{ClassMap, MemberAccessMetadata};
+use crate::analysis::semantic_analysis::MemberAccessMetadata;
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
 use crate::syntax::ast::{
     Assignment, BinaryOperation, BinaryOperationKind, BindingType, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess,
-    ReturnStatement, StatementList, UnaryOperation, WhileLoop,
+    ReturnStatement, StatementList, TableConstructor, UnaryOperation, WhileLoop,
 };
 use crate::syntax::ast::{Ast, Declaration};
 use crate::syntax::span::{combine_span, Span, Spanned};
@@ -18,7 +18,6 @@ pub(crate) struct TypeCheckerPass<'ast, 'f> {
     pub(crate) current_function: Option<Handle>,
     pub(crate) function_map: &'f mut FxHashMap<Handle, FunctionInfo<'ast>>,
     pub(crate) scope_reference_map: &'f ScopeReferenceMap,
-    class_map: &'f ClassMap<'ast>,
     pub(crate) member_access_meta_data: FxHashMap<Handle, MemberAccessMetadata<'ast>>,
     pub(crate) binding_types: FxHashMap<Handle, BindingType>,
     pub(crate) indirect_call_function_types: FxHashMap<Handle, Rc<FunctionType<'ast>>>,
@@ -27,17 +26,11 @@ pub(crate) struct TypeCheckerPass<'ast, 'f> {
 }
 
 impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
-    pub fn new(
-        function_map: &'f mut FxHashMap<Handle, FunctionInfo<'ast>>,
-        scope_reference_map: &'f ScopeReferenceMap,
-        class_map: &'f ClassMap<'ast>,
-        semantic_error_list: &'f mut SemanticErrorList,
-    ) -> Self {
+    pub fn new(function_map: &'f mut FxHashMap<Handle, FunctionInfo<'ast>>, scope_reference_map: &'f ScopeReferenceMap, semantic_error_list: &'f mut SemanticErrorList) -> Self {
         Self {
             current_function: None,
             function_map,
             scope_reference_map,
-            class_map,
             member_access_meta_data: Default::default(),
             binding_types: Default::default(),
             indirect_call_function_types: Default::default(),
@@ -76,14 +69,6 @@ impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
             match self.function_map.get(&handle).map(|info| info.function_type()) {
                 Some(ty) => Type::Function(ty.clone()),
                 None => Type::Error,
-            }
-        }
-    }
-
-    fn report_type_existence(&mut self, ty: &'ast Type<'ast>, span: Span) {
-        if let Type::UserType(name) = ty.dereference() {
-            if !self.class_map.contains_key(name) {
-                self.semantic_error_list.report_error(span, format!("type '{}' was not found", name));
             }
         }
     }
@@ -251,16 +236,12 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
 
     fn visit_function_declaration(&mut self, handle: Handle, node: &'ast FunctionDeclaration<'ast>, _: Span) -> Type<'ast> {
         self.enter_function_scope(handle);
-        for arg in &node.args {
-            self.report_type_existence(arg.0.ty(), arg.1);
-        }
         let scope = self.current_function_scope_mut().expect("just entered a function");
         for arg in &node.args {
             scope
                 .update_variable_type(arg.0.as_handle(), arg.0.ty().clone())
                 .expect("cannot fail because the variable did not exist yet");
         }
-        self.report_type_existence(&node.return_type.0, node.return_type.1);
 
         let mut first_optional_argument_span = None;
         for arg in &node.args {
@@ -493,34 +474,32 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
             return Type::Error;
         }
 
-        let rhs_identifier = &node.rhs.0;
-
         // Automatic dereferencing on member access
-        let member_info = match object_type.dereference() {
-            Type::UserType(name) => self.class_map.get(name).expect("must exist because of type graph pass").field(rhs_identifier.0),
+        let ty = match object_type.dereference() {
+            Type::Table => Type::Int, // TODO
             ty => {
                 self.semantic_error_list.report_error(node.rhs.1, format!("type '{}' does not support member access", ty));
                 return Type::Error;
             }
         };
 
-        match member_info {
-            Some(member_info) => {
-                self.member_access_meta_data.insert(
-                    handle,
-                    MemberAccessMetadata {
-                        object_type: object_type.clone(),
-                        member_type: member_info.ty().clone(),
-                        index: member_info.index(),
-                    },
-                );
-                member_info.ty().clone()
-            }
-            None => {
-                self.semantic_error_list
-                    .report_error(node.rhs.1, format!("field '{}' does not exist in type '{}'", rhs_identifier.0, object_type));
-                Type::Error
-            }
+        self.member_access_meta_data.insert(
+            handle,
+            MemberAccessMetadata {
+                object_type,
+                member_type: ty.clone(),
+                identifier: node.rhs.0 .0,
+            },
+        );
+
+        ty
+    }
+
+    fn visit_table_constructor(&mut self, _: Handle, node: &'ast TableConstructor<'ast>, _: Span) -> Type<'ast> {
+        // TODO: actual type checking
+        for field in &node.fields {
+            self.visit(&field.initializer);
         }
+        Type::Table
     }
 }

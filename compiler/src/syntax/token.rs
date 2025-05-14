@@ -44,7 +44,7 @@ pub enum Token<'src> {
     Class,
 }
 
-impl<'src> Display for Token<'src> {
+impl Display for Token<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Token::LiteralInt(int) => write!(f, "{}", int),

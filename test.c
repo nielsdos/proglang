@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
-extern int32_t rt_test(int32_t);
+extern void rt_main(void);
 
 int main() {
-	printf("%d\n", rt_test(4));
+	rt_main();
 	return 0;
 }

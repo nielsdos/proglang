@@ -1,4 +1,7 @@
-use crate::syntax::ast::{Assignment, Ast, BinaryOperation, Class, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList, TableConstructor, UnaryOperation, WhileLoop};
+use crate::syntax::ast::{
+    Assignment, Ast, BinaryOperation, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList,
+    TableConstructor, UnaryOperation, WhileLoop,
+};
 use crate::syntax::span::{Span, Spanned};
 use crate::util::handle::Handle;
 
@@ -20,7 +23,6 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
             Ast::WhileLoop(inner) => self.visit_while_statement(handle, inner, node.1),
             Ast::ReturnStatement(inner) => self.visit_return_statement(handle, inner, node.1),
             Ast::FunctionCall(inner) => self.visit_function_call(handle, inner, node.1),
-            Ast::Class(inner) => self.visit_class(handle, inner, node.1),
             Ast::MemberAccess(inner) => self.visit_member_access(handle, inner, node.1),
             Ast::TableConstructor(inner) => self.visit_table_constructor(handle, inner, node.1),
             _ => todo!(),
@@ -106,17 +108,16 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
         T::default()
     }
 
-    fn visit_class(&mut self, _: Handle, _: &'ast Class<'ast>, _: Span) -> T {
-        T::default()
-    }
-
     fn visit_member_access(&mut self, _: Handle, node: &'ast MemberAccess<'ast>, _: Span) -> T {
         self.visit(&node.lhs);
         T::default()
     }
 
     fn visit_table_constructor(&mut self, _: Handle, node: &'ast TableConstructor<'ast>, _: Span) -> T {
-        // TODO
+        for field in &node.fields {
+            // TODO: once we support arbitrary names, handle that here too
+            self.visit(&field.initializer);
+        }
         T::default()
     }
 }

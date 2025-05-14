@@ -74,6 +74,11 @@ pub struct Declaration<'src> {
     pub binding: BindingType,
 }
 #[derive(Debug)]
+pub struct MemberStore<'src> {
+    pub base: Box<Spanned<Ast<'src>>>,
+    pub value: Box<Spanned<Ast<'src>>>,
+}
+#[derive(Debug)]
 pub struct StatementList<'src>(pub Vec<Spanned<Ast<'src>>>);
 #[derive(Debug)]
 pub struct FunctionDeclaration<'src> {
@@ -114,16 +119,6 @@ pub struct MemberAccess<'src> {
     pub rhs: Spanned<Identifier<'src>>,
 }
 #[derive(Debug)]
-pub struct ClassField<'src> {
-    pub name: &'src str,
-    pub ty: Type<'src>,
-}
-#[derive(Debug)]
-pub struct Class<'src> {
-    pub name: &'src str,
-    pub fields: Vec<Spanned<ClassField<'src>>>,
-}
-#[derive(Debug)]
 pub struct TableField<'src> {
     pub name: Spanned<Identifier<'src>>,
     pub initializer: Box<Spanned<Ast<'src>>>,
@@ -142,6 +137,7 @@ pub enum Ast<'src> {
     BinaryOperation(BinaryOperation<'src>),
     UnaryOperation(UnaryOperation<'src>),
     Assignment(Assignment<'src>),
+    MemberStore(MemberStore<'src>),
     Declaration(Declaration<'src>),
     StatementList(StatementList<'src>),
     FunctionDeclaration(FunctionDeclaration<'src>),
@@ -149,11 +145,8 @@ pub enum Ast<'src> {
     WhileLoop(WhileLoop<'src>),
     ReturnStatement(ReturnStatement<'src>),
     FunctionCall(FunctionCall<'src>),
-    MemberAccess(MemberAccess<'src>),
-    Class(Class<'src>),
+    MemberAccess(MemberAccess<'src>), // TODO: rename?
     TableConstructor(TableConstructor<'src>),
-    /// Special AST nodes used for internal functions
-    BuiltinSiToFp(Handle),
     /// Placeholder, useful for development purposes.
     Todo,
 }

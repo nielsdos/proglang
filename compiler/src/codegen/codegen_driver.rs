@@ -1,4 +1,3 @@
-use crate::analysis::semantic_analysis::ClassMap;
 use crate::codegen::codegen_llvm::{CodeGenContext, CodeGenLLVM};
 use crate::mid_ir::ir::MidFunction;
 
@@ -15,14 +14,9 @@ impl<'c> CodeGen<'c> {
         }
     }
 
-    pub fn codegen_program(&mut self, class_map: &'c ClassMap<'c>) {
+    pub fn codegen_program(&mut self) {
         self.llvm_codegen.add_module("main_module");
-        self.codegen_types(class_map);
         self.codegen_functions();
-    }
-
-    fn codegen_types(&mut self, class_map: &'c ClassMap<'c>) {
-        self.llvm_codegen.codegen_types(class_map);
     }
 
     fn codegen_functions(&mut self) {

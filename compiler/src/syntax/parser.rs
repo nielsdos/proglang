@@ -1,6 +1,9 @@
 // Based on the sample code from https://github.com/zesterer/chumsky/blob/main/examples/nano_rust.rs
 
-use crate::syntax::ast::{Assignment, Ast, BinaryOperation, BinaryOperationKind, BindingType, Class, ClassField, Declaration, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList, TableConstructor, TableField, UnaryOperation, UnaryOperationKind, WhileLoop};
+use crate::syntax::ast::{
+    Assignment, Ast, BinaryOperation, BinaryOperationKind, BindingType, Declaration, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat,
+    LiteralInt, MemberAccess, ReturnStatement, StatementList, TableConstructor, TableField, UnaryOperation, UnaryOperationKind, WhileLoop,
+};
 use crate::syntax::span::compute_span_over_slice;
 use crate::syntax::span::{Span, Spanned};
 use crate::syntax::token::Token;
@@ -34,20 +37,15 @@ where
             .map_with(|identifier, extra| (identifier, extra.span()))
             .then_ignore(just(Token::Operator('=')))
             .then(expression.clone())
-            .map(|(name, initializer)| {
-                TableField {
-                    name, initializer: Box::new(initializer)
-                }
+            .map(|(name, initializer)| TableField {
+                name,
+                initializer: Box::new(initializer),
             });
 
         let table_constructor = just(Token::LeftBrace)
             .ignore_then(table_field.separated_by(just(Token::Comma)).allow_trailing().collect::<Vec<_>>())
             .then_ignore(just(Token::RightBrace))
-            .map(|fields| {
-                Ast::TableConstructor(TableConstructor {
-                    fields,
-                })
-            });
+            .map(|fields| Ast::TableConstructor(TableConstructor { fields }));
 
         let atom_no_call = literal
             .or(identifier)
@@ -84,6 +82,12 @@ where
                 (Ast::MemberAccess(MemberAccess { lhs: Box::new(lhs), rhs }), span.into())
             },
         );
+        /*let member_access = atom.clone().then_ignore(
+        just(Token::Dot)).then(identifier_raw.map_with(|ident, extra| (ident, extra.span())))
+        .map(|(lhs, rhs): (Spanned<Ast<'src>>, Spanned<Identifier<'src>>)| {
+            let span = lhs.1.start..rhs.1.end;
+            (Ast::MemberAccess(MemberAccess { lhs: Box::new(lhs), rhs }), span.into())
+        });*/
 
         // TODO: call should probably be moved to this?
         let primary = member_access.or(atom);
@@ -168,15 +172,14 @@ where
             .then(statement_list.clone())
             .then_ignore(just(Token::End))
             .then(just(Token::Else).ignore_then(statement_list.clone()).then_ignore(just(Token::End)).or_not())
-            .map_with(|((condition, then_statements), else_statements), extra| (condition, then_statements, else_statements, extra.span()))
-            .map(|(condition, then_statements, else_statements, span)| {
+            .map_with(|((condition, then_statements), else_statements), extra| {
                 (
                     Ast::IfStatement(IfStatement {
                         condition: Box::new(condition),
                         then_statements: Box::new(then_statements),
                         else_statements: else_statements.map(Box::new),
                     }),
-                    span,
+                    extra.span(),
                 )
             });
 
@@ -222,12 +225,29 @@ where
             )
         });
 
-        let assignment = identifier
-            .map_with(|ident, extra| (ident, extra.span()))
+        // TODO: left-factoring
+        let member_expr = parse_expression()
+            .then_ignore(just(Token::Dot))
+            .then(identifier.map_with(|ident, extra| (Identifier(ident), extra.span())))
+            .map_with(|(base_expr, identifier), extra| {
+                println!("{:?}", base_expr);
+                (
+                    Ast::MemberAccess(MemberAccess {
+                        lhs: Box::new(base_expr),
+                        rhs: identifier,
+                    }),
+                    extra.span(),
+                )
+            });
+
+        let assignment = member_expr
+            .or(identifier.map_with(|ident, extra| (Ast::Identifier(Identifier(ident)), extra.span())))
             .then_ignore(just(Token::Operator('=')))
             .then(parse_expression())
-            .map_with(|(ident, expr), extra| (ident, expr, extra.span()))
-            .map(|(ident, expr, span)| (Ast::Assignment(Assignment(ident, Box::new(expr))), span));
+            .map_with(|(base, expr), extra| match base {
+                (Ast::Identifier(Identifier(ident)), ident_span) => (Ast::Assignment(Assignment((ident, ident_span), Box::new(expr))), extra.span()),
+                _ => todo!(),
+            });
 
         let declaration = choice((just(Token::Let).to(BindingType::ImmutableVariable), just(Token::Mut).to(BindingType::MutableVariable)))
             .then(identifier.map_with(|ident, extra| (ident, extra.span())))
@@ -246,8 +266,7 @@ where
 
         let return_ = just(Token::Return)
             .ignore_then(parse_expression().or_not())
-            .map_with(|expression, extra| (expression, extra.span()))
-            .map(|(expression, span)| (Ast::ReturnStatement(ReturnStatement { value: expression.map(Box::new) }), span));
+            .map_with(|expression, extra| (Ast::ReturnStatement(ReturnStatement { value: expression.map(Box::new) }), extra.span()));
 
         let expression_statement = parse_expression();
 
@@ -348,24 +367,6 @@ where
             (Ast::FunctionDeclaration(declaration), span.into())
         });
 
-    /*let class_field_declarations = parse_type()
-        .then(identifier)
-        .map_with(|(ty, name), extra| {
-            let class_field = ClassField { name, ty };
-            (class_field, extra.span())
-        })
-        .repeated()
-        .at_least(1)
-        .collect::<Vec<_>>();
-
-    let class_declaration = just(Token::Class)
-        .ignore_then(identifier)
-        .then(class_field_declarations)
-        .map_with(|data, extra| (data, extra.span()))
-        .then_ignore(just(Token::End))
-        .map(|((name, fields), span)| (Ast::Class(Class { name, fields }), span));
-
-    function_declaration.or(class_declaration)*/
     function_declaration
 }
 

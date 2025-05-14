@@ -4,17 +4,9 @@ use crate::util::handle::Handle;
 use std::rc::Rc;
 
 /// Access to a local variable
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct MidVariableReference {
     pub variable_index: usize,
-}
-
-/// Access to a member of a structure
-#[derive(Debug)]
-pub struct MidMemberReference<'t> {
-    pub of: Box<MidExpression<'t>>,
-    pub index: u32,
-    pub of_type: Type<'t>,
 }
 
 #[derive(Debug)]
@@ -44,21 +36,33 @@ pub struct MidIndirectCall<'t> {
 }
 
 #[derive(Debug)]
+pub struct MidCallExternalByName<'t> {
+    pub name: &'static str,
+    pub args: Vec<MidExpression<'t>>,
+}
+
+#[derive(Debug)]
+pub struct MidBlock<'t> {
+    pub statements: MidStatementList<'t>,
+    pub yield_expr: Box<MidExpression<'t>>,
+}
+
+#[derive(Debug)]
 pub enum MidExpression<'t> {
     VariableRead(MidVariableReference),
     VariableReference(MidVariableReference),
-    MemberReference(MidMemberReference<'t>),
-    PointerLoad(MidPointerLoad<'t>),
     FunctionReference(Handle),
     BinaryOperation(MidBinaryOperation<'t>),
     UnaryNegateOperation(Box<MidExpression<'t>>),
+    CallExternalByName(MidCallExternalByName<'t>),
     DirectCall(MidDirectCall<'t>),
     IndirectCall(MidIndirectCall<'t>),
+    Block(MidBlock<'t>),
+    HiddenBasePtr,
     LiteralInt(i64),
     LiteralFloat(f64),
     LiteralBool(bool),
-    /// These are internal expression types not exposed to the language
-    BuiltinSiToFp(Box<MidExpression<'t>>),
+    LiteralString(&'t str),
 }
 
 /// Target of a memory access, could be a variable, array, ...
@@ -116,7 +120,6 @@ pub struct MidFunction<'ctx> {
     pub name: &'ctx str,
     pub declaration_handle: Handle,
     pub function_type: Rc<FunctionType<'ctx>>,
-    // TODO: flags field instead?
     pub always_inline: bool,
 }
 

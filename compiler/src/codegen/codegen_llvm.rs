@@ -1,18 +1,16 @@
-use crate::analysis::semantic_analysis::ClassMap;
 use crate::mid_ir::ir::{MidExpression, MidFunction, MidStatement, MidStatementList, MidTarget, MidVariableReference};
 use crate::syntax::ast::BinaryOperationKind;
-use crate::types::class_info::ClassInfo;
 use crate::types::type_system::{FunctionType, Type};
 use crate::util::handle::Handle;
 use inkwell::attributes::{Attribute, AttributeLoc};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::intrinsics::Intrinsic;
-use inkwell::module::Module;
+use inkwell::module::{Linkage, Module};
 use inkwell::passes::PassManager;
 use inkwell::targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple};
 use inkwell::types::{AnyTypeEnum, BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FloatType, IntType, VoidType};
-use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, PointerValue};
+use inkwell::values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, GlobalValue, PointerValue};
 use inkwell::{types, AddressSpace, IntPredicate, OptimizationLevel};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
@@ -42,9 +40,11 @@ struct CodeGenInner<'ctx> {
     function_declaration_handle_to_function_value: FxHashMap<Handle, FunctionValue<'ctx>>,
     optimization_level: u32,
     type_to_llvm_type: FxHashMap<Type<'ctx>, AnyTypeEnum<'ctx>>,
+    str_literal_to_global: FxHashMap<&'ctx str, GlobalValue<'ctx>>,
     // Primitive types here for faster lookup
     void_type: VoidType<'ctx>,
     int_type: IntType<'ctx>,
+    byte_type: IntType<'ctx>,
     double_type: FloatType<'ctx>,
     bool_type: IntType<'ctx>,
 }
@@ -119,18 +119,6 @@ impl<'ctx> CodeGenLLVM<'ctx> {
         self.pass_managers.push(self.create_pass_manager());
     }
 
-    pub fn codegen_types(&mut self, class_map: &'ctx ClassMap<'ctx>) {
-        // TODO: hardcoded to first module right now
-        for class in class_map.values() {
-            self.modules[0].declare_struct(class.name());
-            println!("class: {:?}", class);
-        }
-
-        for class in class_map.values() {
-            self.modules[0].codegen_struct(class);
-        }
-    }
-
     pub fn declare_function(&mut self, mid_function: &'ctx MidFunction<'ctx>) {
         // TODO: hardcoded to first module right now
         let function_value = self.modules[0].declare_function(mid_function);
@@ -142,7 +130,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
 
         // TODO: hardcoded to first module right now
         self.modules[0].codegen_function_prepare_types(mid_function);
-        self.modules[0].codegen_function(mid_function, builder, self);
+        self.modules[0].codegen_function(mid_function, builder, &self.context.0);
     }
 
     pub fn optimize(&self) {
@@ -162,19 +150,64 @@ impl<'ctx> CodeGenInner<'ctx> {
 
         // Store basic types
         let int_type = context.i64_type();
+        let byte_type = context.i8_type();
         let double_type = context.f64_type();
         let bool_type = context.bool_type();
+        let void_type = context.void_type();
         type_to_llvm_type.insert(Type::Int, AnyTypeEnum::IntType(int_type));
         type_to_llvm_type.insert(Type::Double, AnyTypeEnum::FloatType(double_type));
         type_to_llvm_type.insert(Type::Bool, AnyTypeEnum::IntType(bool_type));
+        type_to_llvm_type.insert(Type::Table, AnyTypeEnum::IntType(int_type)); // Handle
+
+        // TODO: move this
+        module.add_function(
+            "rt_create_table",
+            int_type.fn_type(
+                &[
+                    BasicMetadataTypeEnum::PointerType(byte_type.ptr_type(AddressSpace::default())),
+                    BasicMetadataTypeEnum::IntType(int_type),
+                ],
+                false,
+            ),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "rt_add_to_table",
+            void_type.fn_type(
+                &[
+                    BasicMetadataTypeEnum::PointerType(byte_type.ptr_type(AddressSpace::default())),
+                    BasicMetadataTypeEnum::IntType(int_type),
+                    BasicMetadataTypeEnum::PointerType(byte_type.ptr_type(AddressSpace::default())),
+                    BasicMetadataTypeEnum::IntType(int_type),
+                    BasicMetadataTypeEnum::IntType(int_type),
+                ],
+                false,
+            ),
+            Some(Linkage::External),
+        );
+        module.add_function(
+            "rt_get_from_table",
+            int_type.fn_type(
+                &[
+                    BasicMetadataTypeEnum::PointerType(byte_type.ptr_type(AddressSpace::default())),
+                    BasicMetadataTypeEnum::IntType(int_type),
+                    BasicMetadataTypeEnum::PointerType(byte_type.ptr_type(AddressSpace::default())),
+                    BasicMetadataTypeEnum::IntType(int_type),
+                ],
+                false,
+            ),
+            Some(Linkage::External),
+        );
 
         Self {
             module,
             function_declaration_handle_to_function_value: Default::default(),
             optimization_level,
             type_to_llvm_type,
-            void_type: context.void_type(),
+            str_literal_to_global: Default::default(),
+            void_type,
             int_type,
+            byte_type,
             double_type,
             bool_type,
         }
@@ -185,11 +218,11 @@ impl<'ctx> CodeGenInner<'ctx> {
         self.type_to_llvm_type.insert(Type::UserType(name), AnyTypeEnum::StructType(structure));
     }
 
-    fn codegen_struct(&mut self, class: &'ctx ClassInfo<'ctx>) {
+    /*fn codegen_struct(&mut self, class: &'ctx ClassInfo<'ctx>) {
         let structure = self.module.get_context().get_struct_type(class.name()).expect("struct should be declared");
         let field_types = class.fields_iter().map(|field| self.get_or_insert_llvm_type(field.ty())).collect::<Vec<_>>();
         structure.set_body(field_types.as_slice(), false);
-    }
+    }*/
 
     fn construct_llvm_function_type(&mut self, function_type: &FunctionType<'ctx>) -> types::FunctionType<'ctx> {
         let arg_types = function_type
@@ -242,14 +275,14 @@ impl<'ctx> CodeGenInner<'ctx> {
     }
 
     pub fn declare_function(&mut self, mid_function: &'ctx MidFunction<'ctx>) -> FunctionValue<'ctx> {
-        let arg_types = mid_function
-            .function_type
-            .arg_types
-            .iter()
-            .map(|arg| {
+        let hidden_rt_ptr = [BasicMetadataTypeEnum::PointerType(self.byte_type.ptr_type(AddressSpace::default()))];
+
+        let arg_types = hidden_rt_ptr
+            .into_iter()
+            .chain(mid_function.function_type.arg_types.iter().map(|arg| {
                 let ty = self.get_or_insert_llvm_type(arg);
                 BasicMetadataTypeEnum::from(ty)
-            })
+            }))
             .collect::<SmallVec<[BasicMetadataTypeEnum<'ctx>; 4]>>();
 
         // TODO: use function type construction helper (and fixup void in that place)
@@ -262,15 +295,13 @@ impl<'ctx> CodeGenInner<'ctx> {
         self.module.add_function(mid_function.name, function_type, None)
     }
 
-    // TODO: can this be more efficient than a 2-pass system?
     pub fn codegen_function_prepare_types(&mut self, mid_function: &'ctx MidFunction<'ctx>) {
         for variable_type in mid_function.variables.iter() {
             self.get_or_insert_llvm_type(variable_type);
         }
     }
 
-    pub fn codegen_function(&self, mid_function: &'ctx MidFunction<'ctx>, builder: Builder<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
-        let context = &codegen.context.0;
+    pub fn codegen_function(&mut self, mid_function: &'ctx MidFunction<'ctx>, builder: Builder<'ctx>, context: &Context) {
         let function_value = self.function_declaration_handle_to_function_value[&mid_function.declaration_handle];
 
         if mid_function.always_inline {
@@ -305,7 +336,7 @@ impl<'ctx> CodeGenInner<'ctx> {
         // Emit instructions
         let body = &mid_function.statements;
         let function_context = CodeGenFunctionContext { builder, function_value, variables };
-        self.emit_statement(body, &function_context, codegen);
+        self.emit_statement(body, &function_context, context);
 
         if function_context.is_bb_unterminated() {
             if *mid_function.return_type() == Type::Void {
@@ -321,39 +352,42 @@ impl<'ctx> CodeGenInner<'ctx> {
         }
     }
 
-    fn emit_statement_list(&self, statement_list: &'ctx MidStatementList, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
+    fn emit_statement_list(&mut self, statement_list: &'ctx MidStatementList, function_context: &CodeGenFunctionContext<'ctx>, context: &Context) {
         for statement in &statement_list.list {
-            self.emit_statement(statement, function_context, codegen);
+            self.emit_statement(statement, function_context, context);
         }
     }
 
-    fn emit_statement(&self, statement: &'ctx MidStatement, function_context: &CodeGenFunctionContext<'ctx>, codegen: &CodeGenLLVM<'ctx>) {
+    fn emit_statement(&mut self, statement: &'ctx MidStatement, function_context: &CodeGenFunctionContext<'ctx>, context: &Context) {
         match statement {
             MidStatement::StatementList(statement_list) => {
-                self.emit_statement_list(statement_list, function_context, codegen);
+                self.emit_statement_list(statement_list, function_context, context);
             }
             MidStatement::Assignment(assignment) => {
-                let value = self.emit_expression(&assignment.value, function_context);
+                let value = self.emit_expression(&assignment.value, function_context, context);
                 let target = self.emit_target(&assignment.target, function_context);
                 function_context.builder.build_store(target, value).expect("valid builder");
             }
             MidStatement::Return(return_statement) => match &return_statement.value {
                 Some(value) => {
-                    function_context.builder.build_return(Some(&self.emit_expression(value, function_context))).expect("valid builder");
+                    function_context
+                        .builder
+                        .build_return(Some(&self.emit_expression(value, function_context, context)))
+                        .expect("valid builder");
                 }
                 None => {
                     function_context.builder.build_return(None).expect("valid builder");
                 }
             },
             MidStatement::If(if_statement) => {
-                let condition = self.emit_expression(&if_statement.condition, function_context);
+                let condition = self.emit_expression(&if_statement.condition, function_context, context);
 
-                let true_block = codegen.context.0.append_basic_block(function_context.function_value, "then");
-                let after_if_block = codegen.context.0.append_basic_block(function_context.function_value, "after_if");
+                let true_block = context.append_basic_block(function_context.function_value, "then");
+                let after_if_block = context.append_basic_block(function_context.function_value, "after_if");
                 let false_block = if if_statement.else_statements.is_none() {
                     after_if_block
                 } else {
-                    codegen.context.0.append_basic_block(function_context.function_value, "else")
+                    context.append_basic_block(function_context.function_value, "else")
                 };
 
                 function_context
@@ -362,14 +396,14 @@ impl<'ctx> CodeGenInner<'ctx> {
                     .expect("valid builder");
 
                 function_context.builder.position_at_end(true_block);
-                self.emit_statement_list(&if_statement.then_statements, function_context, codegen);
+                self.emit_statement_list(&if_statement.then_statements, function_context, context);
                 if function_context.is_bb_unterminated() {
                     function_context.builder.build_unconditional_branch(after_if_block).expect("valid builder");
                 }
 
                 if let Some(else_statements) = &if_statement.else_statements {
                     function_context.builder.position_at_end(false_block);
-                    self.emit_statement_list(else_statements, function_context, codegen);
+                    self.emit_statement_list(else_statements, function_context, context);
                     if function_context.is_bb_unterminated() {
                         function_context.builder.build_unconditional_branch(after_if_block).expect("valid builder");
                     }
@@ -382,9 +416,9 @@ impl<'ctx> CodeGenInner<'ctx> {
                 function_context.builder.position_at_end(after_if_block);
             }
             MidStatement::While(while_loop) => {
-                let condition_block = codegen.context.0.append_basic_block(function_context.function_value, "condition");
-                let body_block = codegen.context.0.append_basic_block(function_context.function_value, "body");
-                let after_loop_block = codegen.context.0.append_basic_block(function_context.function_value, "after_loop");
+                let condition_block = context.append_basic_block(function_context.function_value, "condition");
+                let body_block = context.append_basic_block(function_context.function_value, "body");
+                let after_loop_block = context.append_basic_block(function_context.function_value, "after_loop");
 
                 if while_loop.check_condition_first {
                     function_context.builder.build_unconditional_branch(condition_block).expect("valid builder");
@@ -393,14 +427,14 @@ impl<'ctx> CodeGenInner<'ctx> {
                 }
 
                 function_context.builder.position_at_end(condition_block);
-                let condition = self.emit_expression(&while_loop.condition, function_context);
+                let condition = self.emit_expression(&while_loop.condition, function_context, context);
                 function_context
                     .builder
                     .build_conditional_branch(condition.into_int_value(), body_block, after_loop_block)
                     .expect("valid builder");
 
                 function_context.builder.position_at_end(body_block);
-                self.emit_statement_list(&while_loop.body_statements, function_context, codegen);
+                self.emit_statement_list(&while_loop.body_statements, function_context, context);
                 if function_context.is_bb_unterminated() {
                     function_context.builder.build_unconditional_branch(condition_block).expect("valid builder");
                 }
@@ -408,36 +442,37 @@ impl<'ctx> CodeGenInner<'ctx> {
                 function_context.builder.position_at_end(after_loop_block);
             }
             MidStatement::Expression(expression) => {
-                self.emit_expression(expression, function_context);
+                self.emit_expression(expression, function_context, context);
             }
         }
     }
 
-    fn emit_variable_reference(&self, variable_reference: &'ctx MidVariableReference, function_context: &CodeGenFunctionContext<'ctx>) -> (PointerValue<'ctx>, AnyTypeEnum<'ctx>) {
+    fn emit_variable_reference(&mut self, variable_reference: &'ctx MidVariableReference, function_context: &CodeGenFunctionContext<'ctx>) -> (PointerValue<'ctx>, AnyTypeEnum<'ctx>) {
         let data = &function_context.variables[variable_reference.variable_index];
         (data.ptr, data.ty)
     }
 
-    fn emit_target(&self, target: &'ctx MidTarget, function_context: &CodeGenFunctionContext<'ctx>) -> PointerValue<'ctx> {
+    fn emit_target(&mut self, target: &'ctx MidTarget, function_context: &CodeGenFunctionContext<'ctx>) -> PointerValue<'ctx> {
         match target {
             MidTarget::Variable(variable_reference) => self.emit_variable_reference(variable_reference, function_context).0,
         }
     }
 
-    fn construct_argument_array(&self, args: &'ctx [MidExpression], function_context: &CodeGenFunctionContext<'ctx>) -> SmallVec<[BasicMetadataValueEnum<'ctx>; 4]> {
-        args.iter().map(|arg| self.emit_expression(arg, function_context).into()).collect::<SmallVec<[_; 4]>>()
+    fn construct_argument_array(&mut self, args: &'ctx [MidExpression], function_context: &CodeGenFunctionContext<'ctx>, context: &Context) -> SmallVec<[BasicMetadataValueEnum<'ctx>; 4]> {
+        args.iter().map(|arg| self.emit_expression(arg, function_context, context).into()).collect::<SmallVec<[_; 4]>>()
     }
 
-    fn emit_expression(&self, expression: &'ctx MidExpression, function_context: &CodeGenFunctionContext<'ctx>) -> BasicValueEnum<'ctx> {
+    fn emit_expression(&mut self, expression: &'ctx MidExpression, function_context: &CodeGenFunctionContext<'ctx>, context: &Context) -> BasicValueEnum<'ctx> {
         match expression {
+            MidExpression::HiddenBasePtr => function_context.function_value.get_first_param().expect("should have base ptr"),
             MidExpression::VariableRead(variable_reference) => {
                 let (pointer, ty) = self.emit_variable_reference(variable_reference, function_context);
                 function_context.builder.build_load(self.convert_to_basic_type(&ty), pointer, "var").expect("valid builder")
             }
             MidExpression::VariableReference(variable_reference) => self.emit_variable_reference(variable_reference, function_context).0.as_basic_value_enum(),
             MidExpression::BinaryOperation(binary_operation) => {
-                let lhs_value = self.emit_expression(&binary_operation.lhs, function_context);
-                let rhs_value = self.emit_expression(&binary_operation.rhs, function_context);
+                let lhs_value = self.emit_expression(&binary_operation.lhs, function_context, context);
+                let rhs_value = self.emit_expression(&binary_operation.rhs, function_context, context);
                 // TODO: overflow handling, check NaN handling, division by zero checking, power of zero checking
 
                 if binary_operation.op.is_comparison_op() {
@@ -568,7 +603,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                 }
             }
             MidExpression::UnaryNegateOperation(expression) => {
-                let operand_value = self.emit_expression(expression, function_context);
+                let operand_value = self.emit_expression(expression, function_context, context);
                 if operand_value.is_int_value() {
                     // TODO: overflow?
                     let result = function_context.builder.build_int_neg(operand_value.into_int_value(), "neg");
@@ -581,16 +616,29 @@ impl<'ctx> CodeGenInner<'ctx> {
             MidExpression::LiteralInt(value) => self.int_type.const_int(*value as u64, false).into(),
             MidExpression::LiteralBool(bool) => self.bool_type.const_int(if *bool { 1 } else { 0 }, false).into(),
             MidExpression::LiteralFloat(value) => self.double_type.const_float(*value).into(),
-            MidExpression::BuiltinSiToFp(expression) => {
-                let value = self.emit_expression(expression, function_context);
-                function_context
-                    .builder
-                    .build_signed_int_to_float(value.into_int_value(), self.double_type, "conv")
-                    .expect("valid builder")
-                    .as_basic_value_enum()
+            MidExpression::LiteralString(str) => {
+                let global = self.str_literal_to_global.entry(str).or_insert_with(|| {
+                    let byte_len = self.byte_type.array_type(str.len() as u32);// TODO: as u32 ???
+                    let global = self.module.add_global(byte_len, None, "str_lit");
+                    global.set_constant(true);
+                    global.set_linkage(Linkage::Internal);
+
+                    let tmp = str.bytes().map(|byte| self.byte_type.const_int(byte as u64, false)).collect::<Vec<_>>();
+                    let value = self.byte_type.const_array(&tmp);
+                    global.set_initializer(&value);
+
+                    global
+                });
+                BasicValueEnum::PointerValue(global.as_pointer_value())
+            }
+            MidExpression::Block(block) => {
+                for entry in &block.statements.list {
+                    self.emit_statement(entry, function_context, context);
+                }
+                self.emit_expression(&block.yield_expr, function_context, context)
             }
             MidExpression::DirectCall(direct_call) => {
-                let function_args = self.construct_argument_array(&direct_call.args, function_context);
+                let function_args = self.construct_argument_array(&direct_call.args, function_context, context);
                 let function_value = self.function_declaration_handle_to_function_value[&direct_call.declaration_handle_of_target];
 
                 function_context
@@ -602,9 +650,9 @@ impl<'ctx> CodeGenInner<'ctx> {
                     .unwrap_or_else(|| self.int_type.const_zero().as_basic_value_enum())
             }
             MidExpression::IndirectCall(indirect_call) => {
-                let function_args = self.construct_argument_array(&indirect_call.args, function_context);
+                let function_args = self.construct_argument_array(&indirect_call.args, function_context, context);
+                let function_value = self.emit_expression(&indirect_call.expression, function_context, context);
                 let llvm_callee_ty = self.get_llvm_type_raw(&Type::Function(indirect_call.ty.clone()));
-                let function_value = self.emit_expression(&indirect_call.expression, function_context);
 
                 function_context
                     .builder
@@ -614,28 +662,21 @@ impl<'ctx> CodeGenInner<'ctx> {
                     .left()
                     .unwrap_or_else(|| self.int_type.const_zero().as_basic_value_enum())
             }
+            MidExpression::CallExternalByName(external_call) => {
+                let function_args = self.construct_argument_array(&external_call.args, function_context, context);
+                let function_value = self.module.get_function(external_call.name).expect("helper should have been created");
+
+                function_context
+                    .builder
+                    .build_direct_call(function_value, function_args.as_slice(), "direct_call")
+                    .expect("valid builder")
+                    .try_as_basic_value()
+                    .left()
+                    .unwrap_or_else(|| self.int_type.const_zero().as_basic_value_enum())
+            }
             MidExpression::FunctionReference(handle) => {
                 let function_value = self.function_declaration_handle_to_function_value[handle];
                 BasicValueEnum::PointerValue(function_value.as_global_value().as_pointer_value())
-            }
-            MidExpression::MemberReference(member_reference) => {
-                let lhs = self.emit_expression(&member_reference.of, function_context);
-                let of_type = self.get_llvm_type(member_reference.of_type.dereference());
-                BasicValueEnum::PointerValue(
-                    function_context
-                        .builder
-                        .build_struct_gep(of_type, lhs.into_pointer_value(), member_reference.index, "gep")
-                        .expect("valid expression"),
-                )
-            }
-            MidExpression::PointerLoad(pointer_load) => {
-                let of = self.emit_expression(&pointer_load.of, function_context);
-                let of_type = self.get_llvm_type(&pointer_load.of_type);
-                function_context
-                    .builder
-                    .build_load(of_type, of.into_pointer_value(), "ptr_load")
-                    .expect("valid builder")
-                    .as_basic_value_enum()
             }
         }
     }
@@ -653,13 +694,13 @@ impl<'ctx> CodeGenInner<'ctx> {
             _ => OptimizationLevel::Aggressive,
         };
         let target_machine = target
-            .create_target_machine(&target_triple, "generic", "", optimization_level, RelocMode::Default, CodeModel::Default)
+            .create_target_machine(&target_triple, "generic", "", optimization_level, RelocMode::PIC, CodeModel::Default)
             .expect("target machine should exist");
         target_machine.write_to_file(&self.module, FileType::Assembly, Path::new("output.s")).expect("should write to file");
     }
 }
 
-impl<'ctx> CodeGenFunctionContext<'ctx> {
+impl CodeGenFunctionContext<'_> {
     pub fn is_bb_unterminated(&self) -> bool {
         self.builder.get_insert_block().expect("should have insert block").get_terminator().is_none()
     }
