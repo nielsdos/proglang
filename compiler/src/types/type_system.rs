@@ -44,7 +44,7 @@ impl Display for Type<'_> {
     }
 }
 
-impl<'a> Type<'a> {
+impl Type<'_> {
     pub fn is_numeric(&self) -> bool {
         matches!(self, Type::Int | Type::Double)
     }

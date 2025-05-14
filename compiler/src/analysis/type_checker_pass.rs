@@ -89,7 +89,7 @@ impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
     }
 }
 
-impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 'f> {
+impl<'ast> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, '_> {
     fn visit_literal_int(&mut self, _: Handle, _: &'ast LiteralInt, _: Span) -> Type<'ast> {
         Type::Int
     }

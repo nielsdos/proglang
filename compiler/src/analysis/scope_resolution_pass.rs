@@ -68,7 +68,7 @@ impl<'ast, 'f> ScopeResolutionPass<'ast, 'f> {
     }
 }
 
-impl<'ast, 'f> ScopeResolutionPass<'ast, 'f> {
+impl<'ast> ScopeResolutionPass<'ast, '_> {
     fn declare(&mut self, identifier: &'ast str, declaration: Handle, span: Span) {
         // TODO: once map's try_insert stabilizes, use that API in `bind`!
         if self.resolve(identifier).is_none() {
@@ -89,7 +89,7 @@ impl<'ast, 'f> ScopeResolutionPass<'ast, 'f> {
     }
 }
 
-impl<'ast, 'f> SemanticAnalysisPass<'ast, ()> for ScopeResolutionPass<'ast, 'f> {
+impl<'ast> SemanticAnalysisPass<'ast, ()> for ScopeResolutionPass<'ast, '_> {
     fn visit_identifier(&mut self, handle: Handle, node: &'ast Identifier<'ast>, span: Span) {
         self.check_binding(handle, node.0, span);
     }

@@ -27,7 +27,7 @@ impl<'f, 'ast> FunctionCollectorPass<'f, 'ast> {
     }
 }
 
-impl<'f, 'ast> SemanticAnalysisPass<'ast, ()> for FunctionCollectorPass<'f, 'ast> {
+impl<'ast> SemanticAnalysisPass<'ast, ()> for FunctionCollectorPass<'_, 'ast> {
     fn visit_function_declaration(&mut self, handle: Handle, node: &'ast FunctionDeclaration<'ast>, span: Span) {
         // TODO: in the future, when we support lambdas and closures, we should visit the function bodies
         match self.seen_function_names.get(node.name) {

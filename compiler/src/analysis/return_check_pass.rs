@@ -15,7 +15,7 @@ impl<'f> ReturnCheckPass<'f> {
     }
 }
 
-impl<'f, 'ast> SemanticAnalysisPass<'ast, bool> for ReturnCheckPass<'f> {
+impl<'ast> SemanticAnalysisPass<'ast, bool> for ReturnCheckPass<'_> {
     fn visit_statement_list(&mut self, _: Handle, node: &'ast StatementList<'ast>, _: Span) -> bool {
         for statement in &node.0 {
             if self.visit(statement) {
