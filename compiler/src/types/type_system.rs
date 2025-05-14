@@ -16,7 +16,6 @@ pub enum Type<'a> {
     Void,
     Function(Rc<FunctionType<'a>>),
     UserType(&'a str),
-    Reference(Rc<Type<'a>>),
     #[default]
     Error,
 }
@@ -41,7 +40,6 @@ impl Display for Type<'_> {
                 write!(f, ") -> {}", func.return_type)
             }
             Type::UserType(name) => write!(f, "{}", name),
-            Type::Reference(ty) => write!(f, "&{}", ty),
         }
     }
 }
@@ -55,22 +53,11 @@ impl<'a> Type<'a> {
         matches!(self, Type::Error)
     }
 
-    pub fn is_reference(&self) -> bool {
-        matches!(self, Type::Reference(_))
-    }
-
     pub fn is_void(&self) -> bool {
         matches!(self, Type::Void)
     }
 
     pub fn is_structure(&self) -> bool {
         matches!(self, Type::UserType(_))
-    }
-
-    pub fn dereference(&self) -> &Type<'a> {
-        match self {
-            Type::Reference(ty) => ty,
-            ty => ty,
-        }
     }
 }

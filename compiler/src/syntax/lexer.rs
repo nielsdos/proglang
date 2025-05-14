@@ -68,7 +68,6 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, 
 
     let single_operator = one_of("+-*/%=<>").map(Token::Operator);
 
-    let ampersand = just('&').to(Token::Ampersand);
     let colon = just(':').to(Token::Colon);
     let dot = just('.').to(Token::Dot);
     let comma = just(',').to(Token::Comma);
@@ -101,7 +100,6 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, 
     let token = choice((
         dbl,
         int,
-        ampersand,
         colon,
         dot,
         comma,

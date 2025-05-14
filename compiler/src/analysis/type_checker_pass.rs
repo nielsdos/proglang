@@ -474,8 +474,7 @@ impl<'ast, 'f> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, 
             return Type::Error;
         }
 
-        // Automatic dereferencing on member access
-        let ty = match object_type.dereference() {
+        let ty = match object_type {
             Type::Table => Type::Int, // TODO
             ty => {
                 self.semantic_error_list.report_error(node.rhs.1, format!("type '{}' does not support member access", ty));

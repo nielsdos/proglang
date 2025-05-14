@@ -291,16 +291,6 @@ where
             Token::Identifier("table") => Type::Table,
         };
 
-        let user_ty_name = select! {
-            Token::Identifier(ident) => Type::UserType(ident),
-        };
-
-        // TODO: allow &float etc too?
-        let user_ty = just(Token::Ampersand)
-            .or_not()
-            .then(user_ty_name)
-            .map(|(is_reference, ty)| if is_reference.is_some() { Type::Reference(Rc::new(ty)) } else { ty });
-
         let function_type = just(Token::Fn)
             .ignore_then(
                 parse_type
@@ -318,7 +308,7 @@ where
                 }))
             });
 
-        choice((predefined_ty_name, user_ty, function_type))
+        choice((predefined_ty_name, function_type))
     })
 }
 

@@ -258,7 +258,6 @@ impl<'ctx> CodeGenInner<'ctx> {
         } else {
             let llvm_ty = match ty {
                 Type::Function(ty) => self.construct_llvm_function_type(ty).into(),
-                Type::Reference(ty) => AnyTypeEnum::PointerType(self.get_or_insert_llvm_type(ty).ptr_type(AddressSpace::default())),
                 _ => unimplemented!("{:?}", ty),
             };
             self.type_to_llvm_type.insert(ty.clone(), llvm_ty);
