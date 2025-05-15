@@ -121,7 +121,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
 
     pub fn declare_function(&mut self, mid_function: &'ctx MidFunction<'ctx>) {
         // TODO: hardcoded to first module right now
-        let function_value = self.modules[0].declare_function(mid_function);
+        let function_value = self.modules[0].declare_function(mid_function, &self.context.0);
         self.modules[0].function_declaration_handle_to_function_value.insert(mid_function.declaration_handle, function_value);
     }
 
@@ -129,7 +129,7 @@ impl<'ctx> CodeGenLLVM<'ctx> {
         let builder = self.context.0.create_builder();
 
         // TODO: hardcoded to first module right now
-        self.modules[0].codegen_function_prepare_types(mid_function);
+        self.modules[0].codegen_function_prepare_types(mid_function, &self.context.0);
         self.modules[0].codegen_function(mid_function, builder, &self.context.0);
     }
 
@@ -164,7 +164,7 @@ impl<'ctx> CodeGenInner<'ctx> {
             "rt_create_table",
             int_type.fn_type(
                 &[
-                    BasicMetadataTypeEnum::PointerType(byte_type.ptr_type(AddressSpace::default())),
+                    BasicMetadataTypeEnum::PointerType(context.ptr_type(AddressSpace::default())),
                     BasicMetadataTypeEnum::IntType(int_type),
                 ],
                 false,
@@ -175,9 +175,9 @@ impl<'ctx> CodeGenInner<'ctx> {
             "rt_add_to_table",
             void_type.fn_type(
                 &[
-                    BasicMetadataTypeEnum::PointerType(byte_type.ptr_type(AddressSpace::default())),
+                    BasicMetadataTypeEnum::PointerType(context.ptr_type(AddressSpace::default())),
                     BasicMetadataTypeEnum::IntType(int_type),
-                    BasicMetadataTypeEnum::PointerType(byte_type.ptr_type(AddressSpace::default())),
+                    BasicMetadataTypeEnum::PointerType(context.ptr_type(AddressSpace::default())),
                     BasicMetadataTypeEnum::IntType(int_type),
                     BasicMetadataTypeEnum::IntType(int_type),
                 ],
@@ -189,9 +189,9 @@ impl<'ctx> CodeGenInner<'ctx> {
             "rt_get_from_table",
             int_type.fn_type(
                 &[
-                    BasicMetadataTypeEnum::PointerType(byte_type.ptr_type(AddressSpace::default())),
+                    BasicMetadataTypeEnum::PointerType(context.ptr_type(AddressSpace::default())),
                     BasicMetadataTypeEnum::IntType(int_type),
-                    BasicMetadataTypeEnum::PointerType(byte_type.ptr_type(AddressSpace::default())),
+                    BasicMetadataTypeEnum::PointerType(context.ptr_type(AddressSpace::default())),
                     BasicMetadataTypeEnum::IntType(int_type),
                 ],
                 false,
@@ -224,44 +224,44 @@ impl<'ctx> CodeGenInner<'ctx> {
         structure.set_body(field_types.as_slice(), false);
     }*/
 
-    fn construct_llvm_function_type(&mut self, function_type: &FunctionType<'ctx>) -> types::FunctionType<'ctx> {
+    fn construct_llvm_function_type(&mut self, function_type: &FunctionType<'ctx>, context: &'ctx Context) -> types::FunctionType<'ctx> {
         let arg_types = function_type
             .arg_types
             .iter()
-            .map(|arg| self.get_or_insert_llvm_type(arg).into())
+            .map(|arg| self.get_or_insert_llvm_type(arg, context).into())
             .collect::<SmallVec<[BasicMetadataTypeEnum<'ctx>; 4]>>();
 
         if function_type.return_type.is_void() {
             self.void_type.fn_type(arg_types.as_slice(), false)
         } else {
-            let return_type = self.get_or_insert_llvm_type(&function_type.return_type);
+            let return_type = self.get_or_insert_llvm_type(&function_type.return_type, context);
             return_type.fn_type(arg_types.as_slice(), false)
         }
     }
 
-    fn convert_to_basic_type(&self, ty: &AnyTypeEnum<'ctx>) -> BasicTypeEnum<'ctx> {
+    fn convert_to_basic_type(&self, ty: &AnyTypeEnum<'ctx>, context: &'ctx Context) -> BasicTypeEnum<'ctx> {
         match ty {
-            AnyTypeEnum::FunctionType(ty) => BasicTypeEnum::PointerType(ty.ptr_type(AddressSpace::default())),
+            AnyTypeEnum::FunctionType(_) => BasicTypeEnum::PointerType(context.ptr_type(AddressSpace::default())),
             AnyTypeEnum::IntType(ty) => BasicTypeEnum::IntType(*ty),
             AnyTypeEnum::FloatType(ty) => BasicTypeEnum::FloatType(*ty),
             AnyTypeEnum::PointerType(ty) => BasicTypeEnum::PointerType(*ty),
             AnyTypeEnum::StructType(ty) => BasicTypeEnum::StructType(*ty),
             AnyTypeEnum::ArrayType(ty) => BasicTypeEnum::ArrayType(*ty),
             AnyTypeEnum::VectorType(ty) => BasicTypeEnum::VectorType(*ty),
-            AnyTypeEnum::VoidType(_) => unreachable!(),
+            _ => unreachable!(),
         }
     }
 
-    fn get_or_insert_llvm_type(&mut self, ty: &Type<'ctx>) -> BasicTypeEnum<'ctx> {
+    fn get_or_insert_llvm_type(&mut self, ty: &Type<'ctx>, context: &'ctx Context) -> BasicTypeEnum<'ctx> {
         if let Some(ty) = self.type_to_llvm_type.get(ty) {
-            self.convert_to_basic_type(ty)
+            self.convert_to_basic_type(ty, context)
         } else {
             let llvm_ty = match ty {
-                Type::Function(ty) => self.construct_llvm_function_type(ty).into(),
+                Type::Function(ty) => self.construct_llvm_function_type(ty, context).into(),
                 _ => unimplemented!("{:?}", ty),
             };
             self.type_to_llvm_type.insert(ty.clone(), llvm_ty);
-            self.convert_to_basic_type(&llvm_ty)
+            self.convert_to_basic_type(&llvm_ty, context)
         }
     }
 
@@ -269,17 +269,17 @@ impl<'ctx> CodeGenInner<'ctx> {
         self.type_to_llvm_type.get(ty).expect("type should exist")
     }
 
-    fn get_llvm_type(&self, ty: &Type<'ctx>) -> BasicTypeEnum<'ctx> {
-        self.convert_to_basic_type(self.get_llvm_type_raw(ty))
+    fn get_llvm_type(&self, ty: &Type<'ctx>, context: &'ctx Context) -> BasicTypeEnum<'ctx> {
+        self.convert_to_basic_type(self.get_llvm_type_raw(ty), context)
     }
 
-    pub fn declare_function(&mut self, mid_function: &'ctx MidFunction<'ctx>) -> FunctionValue<'ctx> {
-        let hidden_rt_ptr = [BasicMetadataTypeEnum::PointerType(self.byte_type.ptr_type(AddressSpace::default()))];
+    pub fn declare_function(&mut self, mid_function: &'ctx MidFunction<'ctx>, context: &'ctx Context) -> FunctionValue<'ctx> {
+        let hidden_rt_ptr = [BasicMetadataTypeEnum::PointerType(context.ptr_type(AddressSpace::default()))];
 
         let arg_types = hidden_rt_ptr
             .into_iter()
             .chain(mid_function.function_type.arg_types.iter().map(|arg| {
-                let ty = self.get_or_insert_llvm_type(arg);
+                let ty = self.get_or_insert_llvm_type(arg, context);
                 BasicMetadataTypeEnum::from(ty)
             }))
             .collect::<SmallVec<[BasicMetadataTypeEnum<'ctx>; 4]>>();
@@ -288,19 +288,19 @@ impl<'ctx> CodeGenInner<'ctx> {
         let function_type = if *mid_function.return_type() == Type::Void {
             self.void_type.fn_type(arg_types.as_slice(), false)
         } else {
-            self.get_or_insert_llvm_type(mid_function.return_type()).fn_type(arg_types.as_slice(), false)
+            self.get_or_insert_llvm_type(mid_function.return_type(), context).fn_type(arg_types.as_slice(), false)
         };
 
         self.module.add_function(mid_function.name, function_type, None)
     }
 
-    pub fn codegen_function_prepare_types(&mut self, mid_function: &'ctx MidFunction<'ctx>) {
+    pub fn codegen_function_prepare_types(&mut self, mid_function: &'ctx MidFunction<'ctx>, context: &'ctx Context) {
         for variable_type in mid_function.variables.iter() {
-            self.get_or_insert_llvm_type(variable_type);
+            self.get_or_insert_llvm_type(variable_type, context);
         }
     }
 
-    pub fn codegen_function(&mut self, mid_function: &'ctx MidFunction<'ctx>, builder: Builder<'ctx>, context: &Context) {
+    pub fn codegen_function(&mut self, mid_function: &'ctx MidFunction<'ctx>, builder: Builder<'ctx>, context: &'ctx Context) {
         let function_value = self.function_declaration_handle_to_function_value[&mid_function.declaration_handle];
 
         if mid_function.always_inline {
@@ -318,7 +318,7 @@ impl<'ctx> CodeGenInner<'ctx> {
         for variable_type in &mid_function.variables {
             // Can't have a declaration without an assignment, so setting a default value is not necessary
             let variable_type = self.get_llvm_type_raw(variable_type);
-            let variable_memory = builder.build_alloca(self.convert_to_basic_type(variable_type), "var").expect("valid builder");
+            let variable_memory = builder.build_alloca(self.convert_to_basic_type(variable_type, context), "var").expect("valid builder");
             variables.push(VariableInfo {
                 ptr: variable_memory,
                 ty: *variable_type,
@@ -351,13 +351,13 @@ impl<'ctx> CodeGenInner<'ctx> {
         }
     }
 
-    fn emit_statement_list(&mut self, statement_list: &'ctx MidStatementList, function_context: &CodeGenFunctionContext<'ctx>, context: &Context) {
+    fn emit_statement_list(&mut self, statement_list: &'ctx MidStatementList, function_context: &CodeGenFunctionContext<'ctx>, context: &'ctx Context) {
         for statement in &statement_list.list {
             self.emit_statement(statement, function_context, context);
         }
     }
 
-    fn emit_statement(&mut self, statement: &'ctx MidStatement, function_context: &CodeGenFunctionContext<'ctx>, context: &Context) {
+    fn emit_statement(&mut self, statement: &'ctx MidStatement, function_context: &CodeGenFunctionContext<'ctx>, context: &'ctx Context) {
         match statement {
             MidStatement::StatementList(statement_list) => {
                 self.emit_statement_list(statement_list, function_context, context);
@@ -457,16 +457,16 @@ impl<'ctx> CodeGenInner<'ctx> {
         }
     }
 
-    fn construct_argument_array(&mut self, args: &'ctx [MidExpression], function_context: &CodeGenFunctionContext<'ctx>, context: &Context) -> SmallVec<[BasicMetadataValueEnum<'ctx>; 4]> {
+    fn construct_argument_array(&mut self, args: &'ctx [MidExpression], function_context: &CodeGenFunctionContext<'ctx>, context: &'ctx Context) -> SmallVec<[BasicMetadataValueEnum<'ctx>; 4]> {
         args.iter().map(|arg| self.emit_expression(arg, function_context, context).into()).collect::<SmallVec<[_; 4]>>()
     }
 
-    fn emit_expression(&mut self, expression: &'ctx MidExpression, function_context: &CodeGenFunctionContext<'ctx>, context: &Context) -> BasicValueEnum<'ctx> {
+    fn emit_expression(&mut self, expression: &'ctx MidExpression, function_context: &CodeGenFunctionContext<'ctx>, context: &'ctx Context) -> BasicValueEnum<'ctx> {
         match expression {
             MidExpression::HiddenBasePtr => function_context.function_value.get_first_param().expect("should have base ptr"),
             MidExpression::VariableRead(variable_reference) => {
                 let (pointer, ty) = self.emit_variable_reference(variable_reference, function_context);
-                function_context.builder.build_load(self.convert_to_basic_type(&ty), pointer, "var").expect("valid builder")
+                function_context.builder.build_load(self.convert_to_basic_type(&ty, context), pointer, "var").expect("valid builder")
             }
             MidExpression::VariableReference(variable_reference) => self.emit_variable_reference(variable_reference, function_context).0.as_basic_value_enum(),
             MidExpression::BinaryOperation(binary_operation) => {
