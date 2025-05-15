@@ -17,7 +17,7 @@ pub fn driver(filename: Rc<str>, input: Rc<str>, dump_tokens: bool, dump_ast: bo
     }
 
     let (ast, parse_errors) = if let Some(token_stream) = &token_stream {
-        parser().parse(token_stream.spanned((input.len()..input.len()).into())).into_output_errors()
+        parser().parse(token_stream.as_slice().map((input.len()..input.len()).into(), |(t, s)| (t, s))).into_output_errors()
     } else {
         (None, vec![])
     };
