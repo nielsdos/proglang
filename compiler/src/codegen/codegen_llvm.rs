@@ -163,16 +163,13 @@ impl<'ctx> CodeGenInner<'ctx> {
         module.add_function(
             "rt_create_table",
             int_type.fn_type(
-                &[
-                    BasicMetadataTypeEnum::PointerType(context.ptr_type(AddressSpace::default())),
-                    BasicMetadataTypeEnum::IntType(int_type),
-                ],
+                &[BasicMetadataTypeEnum::PointerType(context.ptr_type(AddressSpace::default())), BasicMetadataTypeEnum::IntType(int_type)],
                 false,
             ),
             Some(Linkage::External),
         );
         module.add_function(
-            "rt_add_to_table",
+            "rt_set_in_table",
             void_type.fn_type(
                 &[
                     BasicMetadataTypeEnum::PointerType(context.ptr_type(AddressSpace::default())),
@@ -213,12 +210,12 @@ impl<'ctx> CodeGenInner<'ctx> {
         }
     }
 
-    fn declare_struct(&mut self, name: &'ctx str) {
+    /*fn declare_struct(&mut self, name: &'ctx str) {
         let structure = self.module.get_context().opaque_struct_type(name);
         self.type_to_llvm_type.insert(Type::UserType(name), AnyTypeEnum::StructType(structure));
     }
 
-    /*fn codegen_struct(&mut self, class: &'ctx ClassInfo<'ctx>) {
+    fn codegen_struct(&mut self, class: &'ctx ClassInfo<'ctx>) {
         let structure = self.module.get_context().get_struct_type(class.name()).expect("struct should be declared");
         let field_types = class.fields_iter().map(|field| self.get_or_insert_llvm_type(field.ty())).collect::<Vec<_>>();
         structure.set_body(field_types.as_slice(), false);
@@ -328,7 +325,7 @@ impl<'ctx> CodeGenInner<'ctx> {
         // Copy arguments to the function's scope
         for (argument_index, &variable_index) in mid_function.arg_idx_to_var_idx.iter().enumerate() {
             let variable_memory = variables[variable_index].ptr;
-            let arg_value = function_value.get_nth_param(argument_index as u32).expect("argument should exist");
+            let arg_value = function_value.get_nth_param(argument_index as u32 + 1).expect("argument should exist");
             builder.build_store(variable_memory, arg_value).expect("valid builder");
         }
 
@@ -361,11 +358,6 @@ impl<'ctx> CodeGenInner<'ctx> {
         match statement {
             MidStatement::StatementList(statement_list) => {
                 self.emit_statement_list(statement_list, function_context, context);
-            }
-            MidStatement::Assignment(assignment) => {
-                let value = self.emit_expression(&assignment.value, function_context, context);
-                let target = self.emit_target(&assignment.target, function_context);
-                function_context.builder.build_store(target, value).expect("valid builder");
             }
             MidStatement::Return(return_statement) => match &return_statement.value {
                 Some(value) => {
@@ -469,6 +461,12 @@ impl<'ctx> CodeGenInner<'ctx> {
                 function_context.builder.build_load(self.convert_to_basic_type(&ty, context), pointer, "var").expect("valid builder")
             }
             MidExpression::VariableReference(variable_reference) => self.emit_variable_reference(variable_reference, function_context).0.as_basic_value_enum(),
+            MidExpression::Assignment(assignment) => {
+                let value = self.emit_expression(&assignment.value, function_context, context);
+                let target = self.emit_target(&assignment.target, function_context);
+                function_context.builder.build_store(target, value).expect("valid builder");
+                value
+            }
             MidExpression::BinaryOperation(binary_operation) => {
                 let lhs_value = self.emit_expression(&binary_operation.lhs, function_context, context);
                 let rhs_value = self.emit_expression(&binary_operation.rhs, function_context, context);
@@ -587,7 +585,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                             }
                         }
                         BinaryOperationKind::Power => {
-                            assert!(lhs_value.is_float_value() && rhs_value.is_float_value());
+                            assert!(lhs_value.is_float_value() && rhs_value.is_float_value()); // TODO: possible to trigger with int powers
                             let pow_intrinsic = Intrinsic::find("llvm.pow").expect("pow intrinsic should exist");
                             let pow_function = pow_intrinsic.get_declaration(&self.module, &[lhs_value.get_type()]).expect("pow function should exist");
                             function_context
@@ -617,7 +615,7 @@ impl<'ctx> CodeGenInner<'ctx> {
             MidExpression::LiteralFloat(value) => self.double_type.const_float(*value).into(),
             MidExpression::LiteralString(str) => {
                 let global = self.str_literal_to_global.entry(str).or_insert_with(|| {
-                    let byte_len = self.byte_type.array_type(str.len() as u32);// TODO: as u32 ???
+                    let byte_len = self.byte_type.array_type(str.len() as u32); // TODO: as u32 ???
                     let global = self.module.add_global(byte_len, None, "str_lit");
                     global.set_constant(true);
                     global.set_linkage(Linkage::Internal);

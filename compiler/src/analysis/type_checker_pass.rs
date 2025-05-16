@@ -2,11 +2,11 @@ use crate::analysis::scope_resolution_pass::ScopeReferenceMap;
 use crate::analysis::semantic_analysis::MemberAccessMetadata;
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
-use crate::syntax::ast::{
-    Assignment, BinaryOperation, BinaryOperationKind, BindingType, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess,
-    ReturnStatement, StatementList, TableConstructor, UnaryOperation, WhileLoop,
-};
 use crate::syntax::ast::{Ast, Declaration};
+use crate::syntax::ast::{
+    BinaryOperation, BinaryOperationKind, BindingType, ComplexAssignment, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt,
+    MemberAccess, ReturnStatement, StatementList, TableConstructor, UnaryOperation, VariableAssignment, WhileLoop,
+};
 use crate::syntax::span::{combine_span, Span, Spanned};
 use crate::types::function_info::{FunctionInfo, VariableUpdateError};
 use crate::types::type_system::{FunctionType, Type};
@@ -65,7 +65,6 @@ impl<'ast, 'f> TypeCheckerPass<'ast, 'f> {
         if let Some(ty) = self.current_function_scope().expect("just entered a function").query_variable_type(handle) {
             ty.clone()
         } else {
-            // TODO: generalise
             match self.function_map.get(&handle).map(|info| info.function_type()) {
                 Some(ty) => Type::Function(ty.clone()),
                 None => Type::Error,
@@ -168,7 +167,7 @@ impl<'ast> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, '_> 
         }
     }
 
-    fn visit_assignment(&mut self, handle: Handle, node: &'ast Assignment<'ast>, span: Span) -> Type<'ast> {
+    fn visit_variable_assignment(&mut self, handle: Handle, node: &'ast VariableAssignment<'ast>, span: Span) -> Type<'ast> {
         let handle = self.map_ast_handle_to_declarator(handle);
         let binding_type = self.binding_types[&handle];
 
@@ -199,6 +198,29 @@ impl<'ast> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, '_> 
             }
             Ok(()) => rhs_type,
         }
+    }
+
+    fn visit_complex_assignment(&mut self, _: Handle, node: &'ast ComplexAssignment<'ast>, _: Span) -> Type<'ast> {
+        // TODO: check binding
+
+        let lhs_type = match &node.0 .0 {
+            Ast::MemberAccess(member_access) => self.visit(&member_access.lhs),
+            _ => {
+                self.semantic_error_list.report_error(node.0 .1, "expression not writable".to_string());
+                return Type::Error;
+            }
+        };
+
+        let rhs_type = self.visit(&node.1);
+
+        match lhs_type {
+            Type::Table | Type::Error => {}
+            _ => {
+                self.semantic_error_list.report_error(node.0 .1, format!("type '{}' does not support member access", lhs_type));
+            }
+        }
+
+        rhs_type
     }
 
     fn visit_declaration(&mut self, handle: Handle, node: &'ast Declaration<'ast>, _: Span) -> Type<'ast> {
@@ -495,7 +517,6 @@ impl<'ast> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, '_> 
     }
 
     fn visit_table_constructor(&mut self, _: Handle, node: &'ast TableConstructor<'ast>, _: Span) -> Type<'ast> {
-        // TODO: actual type checking
         for field in &node.fields {
             self.visit(&field.initializer);
         }

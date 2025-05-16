@@ -49,6 +49,7 @@ pub struct MidBlock<'t> {
 
 #[derive(Debug)]
 pub enum MidExpression<'t> {
+    Assignment(MidAssignment<'t>),
     VariableRead(MidVariableReference),
     VariableReference(MidVariableReference),
     FunctionReference(Handle),
@@ -80,7 +81,7 @@ pub struct MidStatementList<'t> {
 #[derive(Debug)]
 pub struct MidAssignment<'t> {
     pub target: MidTarget,
-    pub value: MidExpression<'t>,
+    pub value: Box<MidExpression<'t>>,
 }
 
 #[derive(Debug)]
@@ -105,7 +106,6 @@ pub struct MidWhile<'t> {
 #[derive(Debug)]
 pub enum MidStatement<'t> {
     StatementList(MidStatementList<'t>),
-    Assignment(MidAssignment<'t>),
     Return(MidReturn<'t>),
     If(MidIf<'t>),
     While(MidWhile<'t>),

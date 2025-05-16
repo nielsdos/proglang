@@ -3,7 +3,7 @@ use crate::mid_ir::ir::{
     MidAssignment, MidBinaryOperation, MidBlock, MidCallExternalByName, MidDirectCall, MidExpression, MidFunction, MidIf, MidIndirectCall, MidReturn, MidStatement, MidStatementList, MidTarget,
     MidVariableReference, MidWhile,
 };
-use crate::syntax::ast::{Assignment, Ast, Declaration, FunctionCall, FunctionCallArg, LiteralBool, LiteralFloat, LiteralInt, StatementList, UnaryOperationKind};
+use crate::syntax::ast::{Ast, Declaration, FunctionCall, FunctionCallArg, LiteralBool, LiteralFloat, LiteralInt, StatementList, UnaryOperationKind, VariableAssignment};
 use crate::syntax::span::Spanned;
 use crate::types::function_info::FunctionInfo;
 use crate::types::type_system::Type;
@@ -40,11 +40,21 @@ impl<'ctx> Construction<'ctx> {
     }
 
     fn construct_args_from_slice(&mut self, function_call_args: &'ctx [FunctionCallArg<'ctx>]) -> Vec<MidExpression<'ctx>> {
-        function_call_args.iter().map(|expression| self.construct_from_expression(&expression.value)).collect::<Vec<_>>()
+        [MidExpression::HiddenBasePtr]
+            .into_iter()
+            .chain(function_call_args.iter().map(|expression| self.construct_from_expression(&expression.value)))
+            .collect::<Vec<_>>()
     }
 
     fn construct_args_from_function_call_node(&mut self, function_call: &'ctx FunctionCall<'ctx>) -> Vec<MidExpression<'ctx>> {
         self.construct_args_from_slice(function_call.args.as_slice())
+    }
+
+    /// Introduce a new temporary to pass around
+    fn new_temp(&mut self, ty: &'ctx Type) -> MidVariableReference {
+        let temp_idx = self.variables.len();
+        self.variables.push(ty);
+        MidVariableReference { variable_index: temp_idx }
     }
 
     fn construct_from_expression(&mut self, expression: &'ctx Spanned<Ast>) -> MidExpression<'ctx> {
@@ -77,18 +87,15 @@ impl<'ctx> Construction<'ctx> {
                 if table_constructor.fields.is_empty() {
                     constructor_call
                 } else {
-                    // Introduce a new temporary to pass around
-                    let temp_idx = self.variables.len();
-                    self.variables.push(&Type::Table);
-                    let temp_ref = MidVariableReference { variable_index: temp_idx };
+                    let temp_ref = self.new_temp(&Type::Table);
 
-                    let mut statements = vec![MidStatement::Assignment(MidAssignment {
+                    let mut statements = vec![MidStatement::Expression(MidExpression::Assignment(MidAssignment {
                         target: MidTarget::Variable(temp_ref),
-                        value: constructor_call,
-                    })];
+                        value: Box::new(constructor_call),
+                    }))];
                     for field in &table_constructor.fields {
                         statements.push(MidStatement::Expression(MidExpression::CallExternalByName(MidCallExternalByName {
-                            name: "rt_add_to_table",
+                            name: "rt_set_in_table",
                             // TODO: type fun
                             args: vec![
                                 MidExpression::HiddenBasePtr,
@@ -109,7 +116,10 @@ impl<'ctx> Construction<'ctx> {
             Ast::FunctionCall(function_call) => match self.construct_from_expression(&function_call.callee) {
                 MidExpression::FunctionReference(handle) => {
                     let args = if let Some(order) = self.semantic_analyser.call_argument_order(expression.0.as_handle()) {
-                        order.iter().map(|arg| self.construct_from_expression(arg.as_ref().unwrap())).collect::<Vec<_>>()
+                        [MidExpression::HiddenBasePtr]
+                            .into_iter()
+                            .chain(order.iter().map(|arg| self.construct_from_expression(arg.as_ref().unwrap())))
+                            .collect::<Vec<_>>()
                     } else {
                         self.construct_args_from_function_call_node(function_call)
                     };
@@ -146,6 +156,51 @@ impl<'ctx> Construction<'ctx> {
                     ],
                 })
             }
+            Ast::ComplexAssignment(assignment) => match &assignment.0 .0 {
+                Ast::MemberAccess(member_access) => {
+                    let temp_ref = self.new_temp(&Type::Int); // TODO
+
+                    let lhs = self.construct_from_expression(&member_access.lhs);
+                    let rhs = self.construct_from_expression(&assignment.1);
+
+                    let call = MidExpression::CallExternalByName(MidCallExternalByName {
+                        name: "rt_set_in_table",
+                        args: vec![
+                            MidExpression::HiddenBasePtr,
+                            lhs,
+                            MidExpression::LiteralString(member_access.rhs.0 .0),
+                            MidExpression::LiteralInt(member_access.rhs.0 .0.len() as i64),
+                            MidExpression::VariableRead(temp_ref),
+                        ],
+                    });
+
+                    MidExpression::Block(MidBlock {
+                        statements: MidStatementList {
+                            list: vec![
+                                MidStatement::Expression(MidExpression::Assignment(MidAssignment {
+                                    target: MidTarget::Variable(temp_ref),
+                                    value: Box::new(rhs),
+                                })),
+                                MidStatement::Expression(call),
+                            ],
+                        },
+                        yield_expr: Box::new(MidExpression::VariableRead(temp_ref)),
+                    })
+                }
+                _ => unreachable!(),
+            },
+            Ast::VariableAssignment(VariableAssignment(_, rhs))
+            | Ast::Declaration(Declaration {
+                assignment: VariableAssignment(_, rhs),
+                binding: _,
+            }) => {
+                let declaration_handle = self.semantic_analyser.identifier_to_declaration(expression.0.as_handle());
+                let variable_index = self.handle_to_var_idx[&declaration_handle];
+                MidExpression::Assignment(MidAssignment {
+                    target: MidTarget::Variable(MidVariableReference { variable_index }),
+                    value: Box::new(self.construct_from_expression(rhs)),
+                })
+            }
             _ => todo!(),
         }
     }
@@ -169,18 +224,6 @@ impl<'ctx> Construction<'ctx> {
             Ast::ReturnStatement(ret) => MidStatement::Return(MidReturn {
                 value: ret.value.as_ref().map(|value| self.construct_from_expression(value)),
             }),
-            Ast::Assignment(Assignment(_, expression))
-            | Ast::Declaration(Declaration {
-                assignment: Assignment(_, expression),
-                binding: _,
-            }) => {
-                let declaration_handle = self.semantic_analyser.identifier_to_declaration(statement.0.as_handle());
-                let variable_index = self.handle_to_var_idx[&declaration_handle];
-                MidStatement::Assignment(MidAssignment {
-                    target: MidTarget::Variable(MidVariableReference { variable_index }),
-                    value: self.construct_from_expression(expression),
-                })
-            }
             Ast::IfStatement(if_statement) => MidStatement::If(MidIf {
                 condition: self.construct_from_expression(&if_statement.condition),
                 then_statements: self.construct_from_ast_ensure_statement_list(&if_statement.then_statements),
@@ -191,8 +234,7 @@ impl<'ctx> Construction<'ctx> {
                 body_statements: self.construct_from_ast_ensure_statement_list(&while_loop.body_statements),
                 check_condition_first: while_loop.check_condition_first,
             }),
-            Ast::FunctionCall(_) => MidStatement::Expression(self.construct_from_expression(statement)),
-            _ => unreachable!(),
+            _ => MidStatement::Expression(self.construct_from_expression(statement)),
         }
     }
 

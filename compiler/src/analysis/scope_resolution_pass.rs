@@ -1,7 +1,7 @@
 use crate::analysis::semantic_analysis::FunctionMap;
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
-use crate::syntax::ast::{Assignment, Declaration, FunctionDeclaration, Identifier, StatementList};
+use crate::syntax::ast::{Declaration, FunctionDeclaration, Identifier, StatementList, VariableAssignment};
 use crate::syntax::span::Span;
 use crate::util::handle::Handle;
 use rustc_hash::FxHashMap;
@@ -94,7 +94,7 @@ impl<'ast> SemanticAnalysisPass<'ast, ()> for ScopeResolutionPass<'ast, '_> {
         self.check_binding(handle, node.0, span);
     }
 
-    fn visit_assignment(&mut self, handle: Handle, node: &'ast Assignment<'ast>, _: Span) {
+    fn visit_variable_assignment(&mut self, handle: Handle, node: &'ast VariableAssignment<'ast>, _: Span) {
         self.visit(&node.1);
         self.check_binding(handle, node.0 .0, node.0 .1);
     }

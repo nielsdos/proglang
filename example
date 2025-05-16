@@ -1,26 +1,30 @@
 # Foo
 
-#fn test_table(): table
-#    let o = {a=1,b=2,}
-#    return o
-#end
+fn test_table_ret(): table
+    let o = {a=1,b=2,}
+    return o
+end
 
 fn test_table(): int
     mut foo = 5
-    let o = {a=1, b=2*foo - 1,c=0}
-    foo = 6
-    o.a = 1
-    return o.b - o.a
+    let o = {a=1, b=2*foo - 1,c=0} # a = 1, b = 9
+    foo = foo = o.a = foo
+    return o.b + foo
 end
 
-#fn infinite_loop(mut int i): int
-#    loop
-#        if i > 10 then
-#            i = i * 2
-#            i = i + 1
-#            return i
-#        end
-#        i = i + 1
-#    end
-#    return 0
-#end
+fn fib(int n): int
+    if n <= 1 then return 1 end
+    return fib(n-1) + fib(n-2)
+end
+
+fn infinite_loop(mut int i): int
+    loop
+        if i > 10 then
+            i = i * 2
+            i = i + 1
+            return i
+        end
+        i = i + 1
+    end
+    return 0
+end

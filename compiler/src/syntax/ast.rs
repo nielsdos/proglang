@@ -61,7 +61,9 @@ pub struct BinaryOperation<'src>(pub Box<Spanned<Ast<'src>>>, pub BinaryOperatio
 #[derive(Debug)]
 pub struct UnaryOperation<'src>(pub UnaryOperationKind, pub Box<Spanned<Ast<'src>>>);
 #[derive(Debug)]
-pub struct Assignment<'src>(pub Spanned<&'src str>, pub Box<Spanned<Ast<'src>>>);
+pub struct VariableAssignment<'src>(pub Spanned<&'src str>, pub Box<Spanned<Ast<'src>>>);
+#[derive(Debug)]
+pub struct ComplexAssignment<'src>(pub Box<Spanned<Ast<'src>>>, pub Box<Spanned<Ast<'src>>>);
 #[derive(Debug, Copy, Clone)]
 pub enum BindingType {
     MutableVariable,
@@ -70,7 +72,7 @@ pub enum BindingType {
 }
 #[derive(Debug)]
 pub struct Declaration<'src> {
-    pub assignment: Assignment<'src>,
+    pub assignment: VariableAssignment<'src>,
     pub binding: BindingType,
 }
 #[derive(Debug)]
@@ -136,7 +138,8 @@ pub enum Ast<'src> {
     Identifier(Identifier<'src>),
     BinaryOperation(BinaryOperation<'src>),
     UnaryOperation(UnaryOperation<'src>),
-    Assignment(Assignment<'src>),
+    VariableAssignment(VariableAssignment<'src>),
+    ComplexAssignment(ComplexAssignment<'src>),
     MemberStore(MemberStore<'src>),
     Declaration(Declaration<'src>),
     StatementList(StatementList<'src>),

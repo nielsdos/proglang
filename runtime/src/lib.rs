@@ -61,14 +61,14 @@ pub unsafe extern "C" fn rt_get_from_table(arena: &GcArena, handle: i64, bytes: 
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn rt_add_to_table(arena: &GcArena, handle: i64, bytes: *const u8, len: usize, value: i64) {
+pub unsafe extern "C" fn rt_set_in_table(arena: &GcArena, handle: i64, bytes: *const u8, len: usize, value: i64) {
     let bytes = slice::from_raw_parts(bytes, len);
     let str = String::from_utf8(bytes.into()).unwrap(); // TODO
 
-    rt_add_to_table_ex(arena, handle, str, value)
+    rt_set_in_table_ex(arena, handle, str, value)
 }
 
-fn rt_add_to_table_ex(arena: &GcArena, handle: i64, str: String, value: i64) {
+fn rt_set_in_table_ex(arena: &GcArena, handle: i64, str: String, value: i64) {
     arena.mutate(|mc, root| {
         let table = root.slots[handle as usize];
         table.borrow_mut(mc).map.insert(str, DynamicValue::Int(value));

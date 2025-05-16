@@ -1,8 +1,8 @@
 // Based on the sample code from https://github.com/zesterer/chumsky/blob/main/examples/nano_rust.rs
 
 use crate::syntax::ast::{
-    Assignment, Ast, BinaryOperation, BinaryOperationKind, BindingType, Declaration, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat,
-    LiteralInt, MemberAccess, ReturnStatement, StatementList, TableConstructor, TableField, UnaryOperation, UnaryOperationKind, WhileLoop,
+    Ast, BinaryOperation, BinaryOperationKind, BindingType, ComplexAssignment, Declaration, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat,
+    LiteralInt, MemberAccess, ReturnStatement, StatementList, TableConstructor, TableField, UnaryOperation, UnaryOperationKind, VariableAssignment, WhileLoop,
 };
 use crate::syntax::span::compute_span_over_slice;
 use crate::syntax::span::{Span, Spanned};
@@ -10,10 +10,13 @@ use crate::syntax::token::Token;
 use crate::types::function_info::ArgumentInfo;
 use crate::types::type_system::{FunctionType, Type};
 use chumsky::input::ValueInput;
+use chumsky::pratt;
 use chumsky::prelude::*;
 use std::rc::Rc;
 
 type ParserExtra<'src> = extra::Err<Rich<'src, Token<'src>, Span>>;
+
+type CallArgList<'src> = Vec<(Option<Spanned<Identifier<'src>>>, Spanned<Ast<'src>>)>;
 
 fn parse_expression<'src, I>() -> impl Parser<'src, I, Spanned<Ast<'src>>, ParserExtra<'src>> + Clone
 where
@@ -68,7 +71,7 @@ where
                     .collect::<Vec<_>>()
                     .delimited_by(just(Token::LeftParen), just(Token::RightParen)),
             )
-            .map(|(callee, args): (Spanned<Ast<'src>>, Vec<(Option<Spanned<Identifier<'src>>>, Spanned<Ast<'src>>)>)| {
+            .map(|(callee, args): (Spanned<Ast<'src>>, CallArgList<'src>)| {
                 let args = args.into_iter().map(|(name, value)| FunctionCallArg { name, value }).collect::<Vec<_>>();
                 Ast::FunctionCall(FunctionCall { callee: Box::new(callee), args })
             });
@@ -82,78 +85,57 @@ where
                 (Ast::MemberAccess(MemberAccess { lhs: Box::new(lhs), rhs }), span.into())
             },
         );
-        /*let member_access = atom.clone().then_ignore(
-        just(Token::Dot)).then(identifier_raw.map_with(|ident, extra| (ident, extra.span())))
-        .map(|(lhs, rhs): (Spanned<Ast<'src>>, Spanned<Identifier<'src>>)| {
-            let span = lhs.1.start..rhs.1.end;
-            (Ast::MemberAccess(MemberAccess { lhs: Box::new(lhs), rhs }), span.into())
-        });*/
 
         // TODO: call should probably be moved to this?
         let primary = member_access.or(atom);
 
-        let map_binary_operation = |lhs: Spanned<Ast<'src>>, (op, rhs): (BinaryOperationKind, Spanned<Ast<'src>>)| {
-            let span = lhs.1.start..rhs.1.end;
-            (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), op, Box::new(rhs))), span.into())
-        };
+        let arith_mul_prod_op = choice((
+            just(Token::Operator('*')).to(BinaryOperationKind::Product),
+            just(Token::Operator('/')).to(BinaryOperationKind::DoubleDivision),
+            just(Token::DoubleSlash).to(BinaryOperationKind::WholeDivision),
+        ));
 
-        let unary_expression = recursive(|unary_expression: Recursive<dyn Parser<'src, I, Spanned<Ast<'src>>, ParserExtra<'src>>>| {
-            let unary_operation = just(Token::Operator('-'))
-                .to(UnaryOperationKind::Minus)
-                .or(just(Token::Operator('+')).to(UnaryOperationKind::Plus))
-                .map_with(|kind, extra| {
-                    let span: Span = extra.span();
-                    (kind, span)
-                })
-                .then(unary_expression.clone())
-                .map(|(kind, rhs)| {
-                    let span: Span = (kind.1.start..rhs.1.end).into();
-                    (Ast::UnaryOperation(UnaryOperation(kind.0, Box::new(rhs))), span)
-                });
+        let comparison_op = choice((
+            just(Token::Operator('<')).to(BinaryOperationKind::LessThan),
+            just(Token::Operator('>')).to(BinaryOperationKind::GreaterThan),
+            just(Token::DoubleEqual).to(BinaryOperationKind::Equal),
+            just(Token::NotEqual).to(BinaryOperationKind::NotEqual),
+            just(Token::LessThanEqual).to(BinaryOperationKind::LessThanEqual),
+            just(Token::GreaterThanEqual).to(BinaryOperationKind::GreaterThanEqual),
+        ));
 
-            let power = primary
-                .clone()
-                .foldl(just(Token::DoubleStar).to(BinaryOperationKind::Power).then(unary_expression).repeated(), map_binary_operation);
-
-            unary_operation.or(power)
-        })
-        .boxed();
-
-        let product_or_divide = unary_expression.clone().foldl(
-            choice((
-                just(Token::Operator('*')).to(BinaryOperationKind::Product),
-                just(Token::Operator('/')).to(BinaryOperationKind::DoubleDivision),
-                just(Token::DoubleSlash).to(BinaryOperationKind::WholeDivision),
-            ))
-            .then(unary_expression)
-            .repeated(),
-            map_binary_operation,
-        );
-
-        let addition_or_subtraction = product_or_divide.clone().foldl(
-            just(Token::Operator('+'))
-                .to(BinaryOperationKind::Addition)
-                .or(just(Token::Operator('-')).to(BinaryOperationKind::Subtraction))
-                .then(product_or_divide)
-                .repeated(),
-            map_binary_operation,
-        );
-
-        let comparison_operation = addition_or_subtraction.clone().foldl(
-            choice((
-                just(Token::Operator('<')).to(BinaryOperationKind::LessThan),
-                just(Token::Operator('>')).to(BinaryOperationKind::GreaterThan),
-                just(Token::DoubleEqual).to(BinaryOperationKind::Equal),
-                just(Token::NotEqual).to(BinaryOperationKind::NotEqual),
-                just(Token::LessThanEqual).to(BinaryOperationKind::LessThanEqual),
-                just(Token::GreaterThanEqual).to(BinaryOperationKind::GreaterThanEqual),
-            ))
-            .then(addition_or_subtraction)
-            .repeated(),
-            map_binary_operation,
-        );
-
-        comparison_operation
+        primary.pratt((
+            // Power
+            pratt::infix(pratt::right(100), just(Token::DoubleStar), |lhs, _, rhs, extra| {
+                (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), BinaryOperationKind::Power, Box::new(rhs))), extra.span())
+            }),
+            // Unary operators
+            pratt::prefix(90, just(Token::Operator('+')), |_, ast, extra| {
+                (Ast::UnaryOperation(UnaryOperation(UnaryOperationKind::Plus, Box::new(ast))), extra.span())
+            }),
+            pratt::prefix(90, just(Token::Operator('-')), |_, ast, extra| {
+                (Ast::UnaryOperation(UnaryOperation(UnaryOperationKind::Minus, Box::new(ast))), extra.span())
+            }),
+            // Binary operators (arithmetic)
+            pratt::infix(pratt::left(80), arith_mul_prod_op, |lhs, op, rhs, extra| {
+                (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), op, Box::new(rhs))), extra.span())
+            }),
+            pratt::infix(pratt::left(70), just(Token::Operator('+')), |lhs, _, rhs, extra| {
+                (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), BinaryOperationKind::Addition, Box::new(rhs))), extra.span())
+            }),
+            pratt::infix(pratt::left(70), just(Token::Operator('-')), |lhs, _, rhs, extra| {
+                (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), BinaryOperationKind::Subtraction, Box::new(rhs))), extra.span())
+            }),
+            // Binary operators (comparisons)
+            pratt::infix(pratt::left(60), comparison_op, |lhs, op, rhs, extra| {
+                (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), op, Box::new(rhs))), extra.span())
+            }),
+            // Assignment
+            pratt::infix(pratt::right(10), just(Token::Operator('=')), |lhs, _, rhs, extra| match lhs {
+                (Ast::Identifier(Identifier(ident)), ident_span) => (Ast::VariableAssignment(VariableAssignment((ident, ident_span), Box::new(rhs))), extra.span()),
+                _ => (Ast::ComplexAssignment(ComplexAssignment(Box::new(lhs), Box::new(rhs))), extra.span()),
+            }),
+        ))
     })
 }
 
@@ -225,30 +207,6 @@ where
             )
         });
 
-        // TODO: left-factoring
-        let member_expr = parse_expression()
-            .then_ignore(just(Token::Dot))
-            .then(identifier.map_with(|ident, extra| (Identifier(ident), extra.span())))
-            .map_with(|(base_expr, identifier), extra| {
-                println!("{:?}", base_expr);
-                (
-                    Ast::MemberAccess(MemberAccess {
-                        lhs: Box::new(base_expr),
-                        rhs: identifier,
-                    }),
-                    extra.span(),
-                )
-            });
-
-        let assignment = member_expr
-            .or(identifier.map_with(|ident, extra| (Ast::Identifier(Identifier(ident)), extra.span())))
-            .then_ignore(just(Token::Operator('=')))
-            .then(parse_expression())
-            .map_with(|(base, expr), extra| match base {
-                (Ast::Identifier(Identifier(ident)), ident_span) => (Ast::Assignment(Assignment((ident, ident_span), Box::new(expr))), extra.span()),
-                _ => todo!(),
-            });
-
         let declaration = choice((just(Token::Let).to(BindingType::ImmutableVariable), just(Token::Mut).to(BindingType::MutableVariable)))
             .then(identifier.map_with(|ident, extra| (ident, extra.span())))
             .then_ignore(just(Token::Operator('=')))
@@ -257,7 +215,7 @@ where
             .map(|(binding, ident, expr, span)| {
                 (
                     Ast::Declaration(Declaration {
-                        assignment: Assignment(ident, Box::new(expr)),
+                        assignment: VariableAssignment(ident, Box::new(expr)),
                         binding,
                     }),
                     span,
@@ -270,7 +228,7 @@ where
 
         let expression_statement = parse_expression();
 
-        let statement = choice((declaration, assignment, while_loop, do_while_loop, infinite_loop, if_check, return_, expression_statement));
+        let statement = choice((declaration, while_loop, do_while_loop, infinite_loop, if_check, return_, expression_statement));
 
         statement.repeated().at_least(1).collect::<Vec<_>>().map(|list| {
             let span = compute_span_over_slice(&list);

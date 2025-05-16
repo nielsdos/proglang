@@ -1,6 +1,6 @@
 use crate::syntax::ast::{
-    Assignment, Ast, BinaryOperation, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement, StatementList,
-    TableConstructor, UnaryOperation, WhileLoop,
+    Ast, BinaryOperation, ComplexAssignment, Declaration, FunctionCall, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt, MemberAccess, ReturnStatement,
+    StatementList, TableConstructor, UnaryOperation, VariableAssignment, WhileLoop,
 };
 use crate::syntax::span::{Span, Spanned};
 use crate::util::handle::Handle;
@@ -15,7 +15,8 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
             Ast::Identifier(inner) => self.visit_identifier(handle, inner, node.1),
             Ast::BinaryOperation(inner) => self.visit_binary_operation(handle, inner, node.1),
             Ast::UnaryOperation(inner) => self.visit_unary_operation(handle, inner, node.1),
-            Ast::Assignment(inner) => self.visit_assignment(handle, inner, node.1),
+            Ast::VariableAssignment(inner) => self.visit_variable_assignment(handle, inner, node.1),
+            Ast::ComplexAssignment(inner) => self.visit_complex_assignment(handle, inner, node.1),
             Ast::Declaration(inner) => self.visit_declaration(handle, inner, node.1),
             Ast::StatementList(inner) => self.visit_statement_list(handle, inner, node.1),
             Ast::FunctionDeclaration(inner) => self.visit_function_declaration(handle, inner, node.1),
@@ -56,7 +57,13 @@ pub trait SemanticAnalysisPass<'ast, T: Default> {
         T::default()
     }
 
-    fn visit_assignment(&mut self, _: Handle, node: &'ast Assignment<'ast>, _: Span) -> T {
+    fn visit_variable_assignment(&mut self, _: Handle, node: &'ast VariableAssignment<'ast>, _: Span) -> T {
+        self.visit(&node.1);
+        T::default()
+    }
+
+    fn visit_complex_assignment(&mut self, _: Handle, node: &'ast ComplexAssignment<'ast>, _: Span) -> T {
+        self.visit(&node.0);
         self.visit(&node.1);
         T::default()
     }

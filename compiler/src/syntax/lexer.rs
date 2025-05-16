@@ -97,19 +97,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, 
 
     let comment = just('#').then(any().and_is(text::newline().not()).repeated()).padded();
 
-    let token = choice((
-        dbl,
-        int,
-        colon,
-        dot,
-        comma,
-        parens,
-        braces,
-        multi_operator,
-        compound_assignment,
-        single_operator,
-        keyword_or_identifier,
-    ));
+    let token = choice((dbl, int, colon, dot, comma, parens, braces, multi_operator, compound_assignment, single_operator, keyword_or_identifier));
 
     token
         .padded_by(comment.repeated())
