@@ -551,13 +551,11 @@ impl<'ctx> CodeGenInner<'ctx> {
                                     .into()
                             }
                         }
-                        BinaryOperationKind::DoubleDivision => {
-                            function_context
-                                .builder
-                                .build_float_div(lhs_value.into_float_value(), rhs_value.into_float_value(), "div")
-                                .expect("valid builder")
-                                .into()
-                        }
+                        BinaryOperationKind::DoubleDivision => function_context
+                            .builder
+                            .build_float_div(lhs_value.into_float_value(), rhs_value.into_float_value(), "div")
+                            .expect("valid builder")
+                            .into(),
                         BinaryOperationKind::WholeDivision => {
                             if lhs_value.is_float_value() {
                                 let div_result = function_context
@@ -591,10 +589,7 @@ impl<'ctx> CodeGenInner<'ctx> {
                                     .builder
                                     .build_int_compare(IntPredicate::EQ, modulo, self.int_type.const_int(0, false), "mod_cmp")
                                     .expect("valid builder");
-                                let different_sign_result = function_context
-                                    .builder
-                                    .build_int_add(division, xor_neg_ext, "diff_sign_div")
-                                    .expect("valid builder");
+                                let different_sign_result = function_context.builder.build_int_add(division, xor_neg_ext, "diff_sign_div").expect("valid builder");
                                 function_context
                                     .builder
                                     .build_select(comparison_mod, division, different_sign_result, "whole_div_int")
