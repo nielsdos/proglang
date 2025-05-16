@@ -453,6 +453,18 @@ impl<'ctx> CodeGenInner<'ctx> {
         args.iter().map(|arg| self.emit_expression(arg, function_context, context).into()).collect::<SmallVec<[_; 4]>>()
     }
 
+    fn cast_to_float_if_necessary(&mut self, value: BasicValueEnum<'ctx>, function_context: &CodeGenFunctionContext<'ctx>) -> BasicValueEnum<'ctx> {
+        if value.is_int_value() {
+            function_context
+                .builder
+                .build_signed_int_to_float(value.into_int_value(), self.double_type, "cast")
+                .expect("valid builder")
+                .into()
+        } else {
+            value
+        }
+    }
+
     fn emit_expression(&mut self, expression: &'ctx MidExpression, function_context: &CodeGenFunctionContext<'ctx>, context: &'ctx Context) -> BasicValueEnum<'ctx> {
         match expression {
             MidExpression::HiddenBasePtr => function_context.function_value.get_first_param().expect("should have base ptr"),
@@ -468,9 +480,15 @@ impl<'ctx> CodeGenInner<'ctx> {
                 value
             }
             MidExpression::BinaryOperation(binary_operation) => {
-                let lhs_value = self.emit_expression(&binary_operation.lhs, function_context, context);
-                let rhs_value = self.emit_expression(&binary_operation.rhs, function_context, context);
+                let mut lhs_value = self.emit_expression(&binary_operation.lhs, function_context, context);
+                let mut rhs_value = self.emit_expression(&binary_operation.rhs, function_context, context);
                 // TODO: overflow handling, check NaN handling, division by zero checking, power of zero checking
+
+                // Implicit cast
+                if lhs_value.is_float_value() != rhs_value.is_float_value() || matches!(binary_operation.op, BinaryOperationKind::DoubleDivision | BinaryOperationKind::Power) {
+                    rhs_value = self.cast_to_float_if_necessary(rhs_value, function_context);
+                    lhs_value = self.cast_to_float_if_necessary(lhs_value, function_context);
+                }
 
                 if binary_operation.op.is_comparison_op() {
                     if lhs_value.is_float_value() {
@@ -534,7 +552,6 @@ impl<'ctx> CodeGenInner<'ctx> {
                             }
                         }
                         BinaryOperationKind::DoubleDivision => {
-                            assert!(lhs_value.is_float_value() && rhs_value.is_float_value());
                             function_context
                                 .builder
                                 .build_float_div(lhs_value.into_float_value(), rhs_value.into_float_value(), "div")
@@ -585,7 +602,6 @@ impl<'ctx> CodeGenInner<'ctx> {
                             }
                         }
                         BinaryOperationKind::Power => {
-                            assert!(lhs_value.is_float_value() && rhs_value.is_float_value()); // TODO: possible to trigger with int powers
                             let pow_intrinsic = Intrinsic::find("llvm.pow").expect("pow intrinsic should exist");
                             let pow_function = pow_intrinsic.get_declaration(&self.module, &[lhs_value.get_type()]).expect("pow function should exist");
                             function_context

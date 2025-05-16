@@ -128,17 +128,6 @@ impl<'ast> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, '_> 
                 return Type::Error;
             }
 
-            if lhs_type != rhs_type {
-                self.semantic_error_list.report_error(
-                    span,
-                    format!(
-                        "expected both operands to have the same type, but the left-hand side has type '{}' and the right-hand side has type '{}'",
-                        lhs_type, rhs_type
-                    ),
-                );
-                return Type::Error;
-            }
-
             if lhs_type == Type::Double || rhs_type == Type::Double || node.1 == BinaryOperationKind::DoubleDivision || node.1 == BinaryOperationKind::Power {
                 Type::Double
             } else {

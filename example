@@ -5,6 +5,26 @@ fn test_table_ret(): table
     return o
 end
 
+fn add_test(): float
+    return 1 + 3.0
+end
+
+fn power_test(): float
+    return -4 ** 2.0
+end
+
+fn div_test(): float
+    return 1 / 4
+end
+
+fn whole_div_test(): int
+    return -5 // 2
+end
+
+fn whole_div_test_params(int a, int b): int
+    return a // b
+end
+
 fn test_table(): int
     mut foo = 5
     let o = {a=1, b=2*foo - 1,c=0} # a = 1, b = 9
