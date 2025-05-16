@@ -577,27 +577,27 @@ impl<'ctx> CodeGenInner<'ctx> {
                                 let rhs_value = rhs_value.into_int_value();
                                 let sign_lhs = function_context
                                     .builder
-                                    .build_and(lhs_value, self.int_type.const_int(1 << 63, false), "sign_lhs")
+                                    .build_int_compare(IntPredicate::SLT, lhs_value, self.int_type.const_int(0, false), "sign_lhs")
                                     .expect("valid builder");
                                 let sign_rhs = function_context
                                     .builder
-                                    .build_and(rhs_value, self.int_type.const_int(1 << 63, false), "sign_rhs")
+                                    .build_int_compare(IntPredicate::SLT, rhs_value, self.int_type.const_int(0, false), "sign_rhs")
                                     .expect("valid builder");
                                 let division = function_context.builder.build_int_signed_div(lhs_value, rhs_value, "div").expect("valid builder");
                                 let modulo = function_context.builder.build_int_signed_rem(lhs_value, rhs_value, "mod").expect("valid builder");
-                                let comparison_sign = function_context.builder.build_int_compare(IntPredicate::EQ, sign_lhs, sign_rhs, "sign_cmp").expect("valid builder");
+                                let xor_neg = function_context.builder.build_xor(sign_lhs, sign_rhs, "sign_cmp").expect("valid builder");
+                                let xor_neg_ext = function_context.builder.build_int_s_extend(xor_neg, self.int_type, "sign_ext").expect("valid builder");
                                 let comparison_mod = function_context
                                     .builder
                                     .build_int_compare(IntPredicate::EQ, modulo, self.int_type.const_int(0, false), "mod_cmp")
                                     .expect("valid builder");
-                                let both_conditions = function_context.builder.build_or(comparison_sign, comparison_mod, "both_cmp").expect("valid builder");
                                 let different_sign_result = function_context
                                     .builder
-                                    .build_int_sub(division, self.int_type.const_int(1, true), "diff_sign_div")
+                                    .build_int_add(division, xor_neg_ext, "diff_sign_div")
                                     .expect("valid builder");
                                 function_context
                                     .builder
-                                    .build_select(both_conditions, division, different_sign_result, "whole_div_int")
+                                    .build_select(comparison_mod, division, different_sign_result, "whole_div_int")
                                     .expect("valid builder")
                             }
                         }
