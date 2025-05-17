@@ -1,3 +1,3 @@
 #!/bin/bash
-../../target/debug/proglang --machine-friendly-output "$@"
+../../../target/debug/compiler --machine-friendly-output "$@"
 exit 0

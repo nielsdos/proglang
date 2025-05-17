@@ -1,6 +1,8 @@
 # RUN: ../compile %s |& FileCheck %s
 
-fn hex() -> int:
+fn oct(): int
     return 0o19
+end
 
-# CHECK: {{.+}}: found 9 expected '(', '.', '**', '*', '/', '//', '+', '-', '<', '>', '==', '!=', '<=', '>=', or 'end of statement'
+# CHECK: {{.+}}: this is the last non-dead statement in this block
+# CHECK: {{.+}}: therefore, this statement and any following statements in this block are unreachable

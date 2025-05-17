@@ -6,7 +6,7 @@ pub type Span = SimpleSpan<usize>;
 
 pub fn compute_span_over_slice(slice: &[Spanned<Ast>]) -> Span {
     if slice.is_empty() {
-        SimpleSpan::new(0, 0)
+        (0..0).into()
     } else {
         (slice[0].1.start..slice[slice.len() - 1].1.end).into()
     }

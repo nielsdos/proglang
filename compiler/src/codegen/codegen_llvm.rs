@@ -222,10 +222,9 @@ impl<'ctx> CodeGenInner<'ctx> {
     }*/
 
     fn construct_llvm_function_type(&mut self, function_type: &FunctionType<'ctx>, context: &'ctx Context) -> types::FunctionType<'ctx> {
-        let arg_types = function_type
-            .arg_types
-            .iter()
-            .map(|arg| self.get_or_insert_llvm_type(arg, context).into())
+        let arg_types = [BasicMetadataTypeEnum::PointerType(context.ptr_type(AddressSpace::default()))]
+            .into_iter()
+            .chain(function_type.arg_types.iter().map(|arg| self.get_or_insert_llvm_type(arg, context).into()))
             .collect::<SmallVec<[BasicMetadataTypeEnum<'ctx>; 4]>>();
 
         if function_type.return_type.is_void() {

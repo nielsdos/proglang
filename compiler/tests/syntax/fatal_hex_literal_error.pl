@@ -1,6 +1,7 @@
 # RUN: ../compile %s |& FileCheck %s
 
-fn hex() -> int:
+fn hex(): int
     return 0xaz
+end
 
-# CHECK: {{.+}}: found z expected '(', '.', '**', '*', '/', '//', '+', '-', '<', '>', '==', '!=', '<=', '>=', or 'end of statement'
+# CHECK: {{.+}}: identifier 'z' was not found in the current scope

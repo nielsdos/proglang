@@ -1,6 +1,8 @@
 # RUN: ../compile %s |& FileCheck %s
 
-fn hex() -> int:
+fn bin(): int
     return 0b12
+end
 
-# CHECK: {{.+}}: found 2 expected '(', '.', '**', '*', '/', '//', '+', '-', '<', '>', '==', '!=', '<=', '>=', or 'end of statement'
+# CHECK: {{.+}}: this is the last non-dead statement in this block
+# CHECK: {{.+}}: therefore, this statement and any following statements in this block are unreachable
