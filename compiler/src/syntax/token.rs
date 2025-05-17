@@ -40,7 +40,6 @@ pub enum Token<'src> {
     Mut,
     Fn,
     Return,
-    Class,
 }
 
 impl Display for Token<'_> {
@@ -85,7 +84,6 @@ impl Display for Token<'_> {
             Token::Mut => write!(f, "mut"),
             Token::Fn => write!(f, "fn"),
             Token::Return => write!(f, "return"),
-            Token::Class => write!(f, "class"),
         }
     }
 }

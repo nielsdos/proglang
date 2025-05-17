@@ -91,7 +91,6 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<Spanned<Token<'src>>>, 
         "false" => Token::LiteralBool(false),
         "fn" => Token::Fn,
         "return" => Token::Return,
-        "class" => Token::Class,
         _ => Token::Identifier(ident),
     });
 
