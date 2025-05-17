@@ -115,6 +115,19 @@ impl<'ast> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, '_> 
         }
 
         if node.1.is_comparison_op() {
+            // TODO: what about incompatible comparisons?
+            Type::Bool
+        } else if node.1.is_logical_op() {
+            if lhs_type != Type::Bool {
+                self.semantic_error_list
+                    .report_error(span, format!("expected the left-hand side to be of type 'bool', but the left-hand side has type '{}'", lhs_type));
+            }
+
+            if rhs_type != Type::Bool {
+                self.semantic_error_list
+                    .report_error(span, format!("expected the right-hand side to be of type 'bool', but the right-hand side has type '{}'", rhs_type));
+            }
+
             Type::Bool
         } else {
             if !lhs_type.is_numeric() || !rhs_type.is_numeric() {

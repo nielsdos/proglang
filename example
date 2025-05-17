@@ -32,19 +32,15 @@ fn test_table(): int
     return o.b + foo
 end
 
-fn fib(int n): int
-    if n <= 1 then return 1 end
-    return fib(n-1) + fib(n-2)
+fn rec(int b): int
+    if b <= 1 then return 1 end
+    return b * rec(b-1)
 end
 
-fn infinite_loop(mut int i): int
-    loop
-        if i > 10 then
-            i = i * 2
-            i = i + 1
-            return i
-        end
-        i = i + 1
-    end
-    return 0
+fn and(int a, int b): bool
+    return a <= 0 && rec(b) <= 0
+end
+
+fn or(int a, int b): bool
+    return a <= 0 || rec(b) <= 0
 end

@@ -17,6 +17,8 @@ pub enum BinaryOperationKind {
     GreaterThan,
     LessThanEqual,
     GreaterThanEqual,
+    LogicalAnd,
+    LogicalOr,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +38,10 @@ impl BinaryOperationKind {
                 | BinaryOperationKind::LessThanEqual
                 | BinaryOperationKind::GreaterThanEqual
         )
+    }
+
+    pub fn is_logical_op(&self) -> bool {
+        matches!(self, BinaryOperationKind::LogicalAnd | BinaryOperationKind::LogicalOr)
     }
 }
 

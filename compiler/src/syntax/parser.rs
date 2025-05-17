@@ -130,6 +130,13 @@ where
             pratt::infix(pratt::left(60), comparison_op, |lhs, op, rhs, extra| {
                 (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), op, Box::new(rhs))), extra.span())
             }),
+            // Binary operators (logical)
+            pratt::infix(pratt::left(30), just(Token::DoubleAmpersand), |lhs, _, rhs, extra| {
+                (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), BinaryOperationKind::LogicalAnd, Box::new(rhs))), extra.span())
+            }),
+            pratt::infix(pratt::left(29), just(Token::DoubleBar), |lhs, _, rhs, extra| {
+                (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), BinaryOperationKind::LogicalOr, Box::new(rhs))), extra.span())
+            }),
             // Assignment
             pratt::infix(pratt::right(10), just(Token::Operator('=')), |lhs, _, rhs, extra| match lhs {
                 (Ast::Identifier(Identifier(ident)), ident_span) => (Ast::VariableAssignment(VariableAssignment((ident, ident_span), Box::new(rhs))), extra.span()),

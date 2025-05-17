@@ -1,4 +1,4 @@
-use crate::mid_ir::ir::{MidExpression, MidFunction, MidStatement, MidStatementList, MidTarget, MidVariableReference};
+use crate::mid_ir::ir::{MidBinaryOperation, MidExpression, MidFunction, MidStatement, MidStatementList, MidTarget, MidVariableReference};
 use crate::syntax::ast::BinaryOperationKind;
 use crate::types::type_system::{FunctionType, Type};
 use crate::util::handle::Handle;
@@ -464,6 +464,35 @@ impl<'ctx> CodeGenInner<'ctx> {
         }
     }
 
+    fn emit_logical_condition(&mut self, expression: &'ctx MidBinaryOperation<'ctx>, function_context: &CodeGenFunctionContext<'ctx>, context: &'ctx Context) -> BasicValueEnum<'ctx> {
+        let lhs_value = self.emit_expression(&expression.lhs, function_context, context);
+
+        let rhs_block = context.append_basic_block(function_context.function_value, "rhs_block");
+        let merge_block = context.append_basic_block(function_context.function_value, "merge");
+
+        let (true_block, false_block) = match expression.op {
+            BinaryOperationKind::LogicalAnd => (rhs_block, merge_block),
+            _ => (merge_block, rhs_block),
+        };
+
+        let cond_br = function_context
+            .builder
+            .build_conditional_branch(lhs_value.into_int_value(), true_block, false_block)
+            .expect("valid builder");
+        let cond_br_block = cond_br.get_parent().expect("must be in a BB");
+
+        function_context.builder.position_at_end(rhs_block);
+        let rhs_value = self.emit_expression(&expression.rhs, function_context, context);
+
+        function_context.builder.build_unconditional_branch(merge_block).expect("valid builder");
+
+        function_context.builder.position_at_end(merge_block);
+        let phi = function_context.builder.build_phi(self.bool_type, "merge_phi").expect("valid builder");
+        phi.add_incoming(&[(&lhs_value.into_int_value(), cond_br_block)]);
+        phi.add_incoming(&[(&rhs_value.into_int_value(), rhs_block)]);
+        phi.as_basic_value()
+    }
+
     fn emit_expression(&mut self, expression: &'ctx MidExpression, function_context: &CodeGenFunctionContext<'ctx>, context: &'ctx Context) -> BasicValueEnum<'ctx> {
         match expression {
             MidExpression::HiddenBasePtr => function_context.function_value.get_first_param().expect("should have base ptr"),
@@ -478,6 +507,20 @@ impl<'ctx> CodeGenInner<'ctx> {
                 function_context.builder.build_store(target, value).expect("valid builder");
                 value
             }
+            MidExpression::BinaryOperation(
+                expr @ MidBinaryOperation {
+                    lhs: _,
+                    op: BinaryOperationKind::LogicalAnd,
+                    rhs: _,
+                },
+            )
+            | MidExpression::BinaryOperation(
+                expr @ MidBinaryOperation {
+                    lhs: _,
+                    op: BinaryOperationKind::LogicalOr,
+                    rhs: _,
+                },
+            ) => self.emit_logical_condition(expr, function_context, context),
             MidExpression::BinaryOperation(binary_operation) => {
                 let mut lhs_value = self.emit_expression(&binary_operation.lhs, function_context, context);
                 let mut rhs_value = self.emit_expression(&binary_operation.rhs, function_context, context);
