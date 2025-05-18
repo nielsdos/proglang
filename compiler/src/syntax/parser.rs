@@ -159,8 +159,8 @@ where
             .ignore_then(parse_expression())
             .then_ignore(just(Token::Then))
             .then(statement_list.clone())
+            .then(just(Token::Else).ignore_then(statement_list.clone()).or_not())
             .then_ignore(just(Token::End))
-            .then(just(Token::Else).ignore_then(statement_list.clone()).then_ignore(just(Token::End)).or_not())
             .map_with(|((condition, then_statements), else_statements), extra| {
                 (
                     Ast::IfStatement(IfStatement {
