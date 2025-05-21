@@ -19,12 +19,19 @@ pub enum BinaryOperationKind {
     GreaterThanEqual,
     LogicalAnd,
     LogicalOr,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    LogicalRightShift,
+    ArithmeticRightShift,
+    LogicalLeftShift,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UnaryOperationKind {
     Plus,
     Minus,
+    BitwiseNot,
 }
 
 impl BinaryOperationKind {
@@ -43,6 +50,18 @@ impl BinaryOperationKind {
     pub fn is_logical_op(&self) -> bool {
         matches!(self, BinaryOperationKind::LogicalAnd | BinaryOperationKind::LogicalOr)
     }
+
+    pub fn is_bitwise_op(&self) -> bool {
+        matches!(
+            self,
+            BinaryOperationKind::BitwiseAnd
+                | BinaryOperationKind::BitwiseOr
+                | BinaryOperationKind::BitwiseXor
+                | BinaryOperationKind::LogicalRightShift
+                | BinaryOperationKind::ArithmeticRightShift
+                | BinaryOperationKind::LogicalLeftShift
+        )
+    }
 }
 
 impl UnaryOperationKind {
@@ -50,6 +69,7 @@ impl UnaryOperationKind {
         match self {
             UnaryOperationKind::Plus => "+",
             UnaryOperationKind::Minus => "-",
+            UnaryOperationKind::BitwiseNot => "~",
         }
     }
 }

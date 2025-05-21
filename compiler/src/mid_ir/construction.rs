@@ -70,6 +70,7 @@ impl<'ctx> Construction<'ctx> {
             Ast::UnaryOperation(op) => match op.0 {
                 UnaryOperationKind::Plus => self.construct_from_expression(&op.1),
                 UnaryOperationKind::Minus => MidExpression::UnaryNegateOperation(Box::new(self.construct_from_expression(&op.1))),
+                UnaryOperationKind::BitwiseNot => MidExpression::UnaryBitwiseNotOperation(Box::new(self.construct_from_expression(&op.1))),
             },
             Ast::Identifier(_) => {
                 let declaration_handle = self.semantic_analyser.identifier_to_declaration(expression.0.as_handle());

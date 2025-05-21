@@ -104,18 +104,19 @@ where
             just(Token::GreaterThanEqual).to(BinaryOperationKind::GreaterThanEqual),
         ));
 
+        let unary_op = choice((
+            just(Token::Operator('+')).to(UnaryOperationKind::Plus),
+            just(Token::Operator('-')).to(UnaryOperationKind::Minus),
+            just(Token::Operator('~')).to(UnaryOperationKind::BitwiseNot),
+        ));
+
         primary.pratt((
             // Power
             pratt::infix(pratt::right(100), just(Token::DoubleStar), |lhs, _, rhs, extra| {
                 (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), BinaryOperationKind::Power, Box::new(rhs))), extra.span())
             }),
             // Unary operators
-            pratt::prefix(90, just(Token::Operator('+')), |_, ast, extra| {
-                (Ast::UnaryOperation(UnaryOperation(UnaryOperationKind::Plus, Box::new(ast))), extra.span())
-            }),
-            pratt::prefix(90, just(Token::Operator('-')), |_, ast, extra| {
-                (Ast::UnaryOperation(UnaryOperation(UnaryOperationKind::Minus, Box::new(ast))), extra.span())
-            }),
+            pratt::prefix(90, unary_op, |op, ast, extra| (Ast::UnaryOperation(UnaryOperation(op, Box::new(ast))), extra.span())),
             // Binary operators (arithmetic)
             pratt::infix(pratt::left(80), arith_mul_prod_op, |lhs, op, rhs, extra| {
                 (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), op, Box::new(rhs))), extra.span())
@@ -125,6 +126,31 @@ where
             }),
             pratt::infix(pratt::left(70), just(Token::Operator('-')), |lhs, _, rhs, extra| {
                 (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), BinaryOperationKind::Subtraction, Box::new(rhs))), extra.span())
+            }),
+            // Binary operators (bitwise)
+            pratt::infix(pratt::left(66), just(Token::DoubleLessThan), |lhs, _, rhs, extra| {
+                (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), BinaryOperationKind::LogicalLeftShift, Box::new(rhs))), extra.span())
+            }),
+            pratt::infix(pratt::left(66), just(Token::DoubleGreaterThan), |lhs, _, rhs, extra| {
+                (
+                    Ast::BinaryOperation(BinaryOperation(Box::new(lhs), BinaryOperationKind::LogicalRightShift, Box::new(rhs))),
+                    extra.span(),
+                )
+            }),
+            pratt::infix(pratt::left(66), just(Token::TripleGreaterThan), |lhs, _, rhs, extra| {
+                (
+                    Ast::BinaryOperation(BinaryOperation(Box::new(lhs), BinaryOperationKind::ArithmeticRightShift, Box::new(rhs))),
+                    extra.span(),
+                )
+            }),
+            pratt::infix(pratt::left(64), just(Token::Operator('&')), |lhs, _, rhs, extra| {
+                (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), BinaryOperationKind::BitwiseAnd, Box::new(rhs))), extra.span())
+            }),
+            pratt::infix(pratt::left(63), just(Token::Operator('^')), |lhs, _, rhs, extra| {
+                (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), BinaryOperationKind::BitwiseXor, Box::new(rhs))), extra.span())
+            }),
+            pratt::infix(pratt::left(62), just(Token::Operator('|')), |lhs, _, rhs, extra| {
+                (Ast::BinaryOperation(BinaryOperation(Box::new(lhs), BinaryOperationKind::BitwiseOr, Box::new(rhs))), extra.span())
             }),
             // Binary operators (comparisons)
             pratt::infix(pratt::left(60), comparison_op, |lhs, op, rhs, extra| {

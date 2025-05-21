@@ -548,6 +548,47 @@ impl<'ctx> CodeGenInner<'ctx> {
                     }
                 } else {
                     match binary_operation.op {
+                        BinaryOperationKind::BitwiseAnd => function_context
+                            .builder
+                            .build_and(lhs_value.into_int_value(), rhs_value.into_int_value(), "and")
+                            .expect("valid builder")
+                            .into(),
+                        BinaryOperationKind::BitwiseXor => function_context
+                            .builder
+                            .build_xor(lhs_value.into_int_value(), rhs_value.into_int_value(), "xor")
+                            .expect("valid builder")
+                            .into(),
+                        BinaryOperationKind::BitwiseOr => function_context
+                            .builder
+                            .build_or(lhs_value.into_int_value(), rhs_value.into_int_value(), "or")
+                            .expect("valid builder")
+                            .into(),
+                        BinaryOperationKind::LogicalLeftShift | BinaryOperationKind::LogicalRightShift | BinaryOperationKind::ArithmeticRightShift => {
+                            let cmp = function_context
+                                .builder
+                                .build_int_compare(IntPredicate::UGT, rhs_value.into_int_value(), self.int_type.const_int(63, false), "shift_cmp")
+                                .expect("valid builder");
+                            let shifted_result = match binary_operation.op {
+                                BinaryOperationKind::LogicalLeftShift => function_context
+                                    .builder
+                                    .build_left_shift(lhs_value.into_int_value(), rhs_value.into_int_value(), "lshift")
+                                    .expect("valid builder"),
+                                BinaryOperationKind::LogicalRightShift => function_context
+                                    .builder
+                                    .build_right_shift(lhs_value.into_int_value(), rhs_value.into_int_value(), false, "rshift")
+                                    .expect("valid builder"),
+                                BinaryOperationKind::ArithmeticRightShift => function_context
+                                    .builder
+                                    .build_right_shift(lhs_value.into_int_value(), rhs_value.into_int_value(), true, "rshift")
+                                    .expect("valid builder"),
+                                _ => unreachable!(),
+                            };
+                            function_context
+                                .builder
+                                .build_select(cmp, self.int_type.const_int(0, false), shifted_result, "shift_select")
+                                .expect("valid builder")
+                                .into()
+                        }
                         BinaryOperationKind::Addition => {
                             if lhs_value.is_float_value() {
                                 function_context
@@ -662,6 +703,11 @@ impl<'ctx> CodeGenInner<'ctx> {
                     let result = function_context.builder.build_float_neg(operand_value.into_float_value(), "neg");
                     result.expect("valid builder").into()
                 }
+            }
+            MidExpression::UnaryBitwiseNotOperation(expression) => {
+                let operand_value = self.emit_expression(expression, function_context, context);
+                assert!(operand_value.is_int_value());
+                function_context.builder.build_not(operand_value.into_int_value(), "not").expect("valid builder").into()
             }
             MidExpression::LiteralInt(value) => self.int_type.const_int(*value as u64, false).into(),
             MidExpression::LiteralBool(bool) => self.bool_type.const_int(if *bool { 1 } else { 0 }, false).into(),

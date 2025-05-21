@@ -44,3 +44,27 @@ end
 fn or(int a, int b): bool
     return a <= 0 || rec(b) <= 0
 end
+
+fn bnot(int x): int
+    return ~x
+end
+
+#fn bnot2(float x): float
+#    return ~x
+#end
+
+fn band(int x): int
+    return x | 1
+end
+
+fn lshift(int x): int
+    return x << 1
+end
+
+fn rshift(int x): int
+    return x >> 1
+end
+
+fn rashift(int x): int
+    return x >>> 1
+end

@@ -55,6 +55,7 @@ pub enum MidExpression<'t> {
     FunctionReference(Handle),
     BinaryOperation(MidBinaryOperation<'t>),
     UnaryNegateOperation(Box<MidExpression<'t>>),
+    UnaryBitwiseNotOperation(Box<MidExpression<'t>>),
     CallExternalByName(MidCallExternalByName<'t>),
     DirectCall(MidDirectCall<'t>),
     IndirectCall(MidIndirectCall<'t>),

@@ -2,7 +2,7 @@ use crate::analysis::scope_resolution_pass::ScopeReferenceMap;
 use crate::analysis::semantic_analysis::MemberAccessMetadata;
 use crate::analysis::semantic_analysis_pass::SemanticAnalysisPass;
 use crate::analysis::semantic_error::SemanticErrorList;
-use crate::syntax::ast::{Ast, Declaration};
+use crate::syntax::ast::{Ast, Declaration, UnaryOperationKind};
 use crate::syntax::ast::{
     BinaryOperation, BinaryOperationKind, BindingType, ComplexAssignment, FunctionCall, FunctionCallArg, FunctionDeclaration, Identifier, IfStatement, LiteralBool, LiteralFloat, LiteralInt,
     MemberAccess, ReturnStatement, StatementList, TableConstructor, UnaryOperation, VariableAssignment, WhileLoop,
@@ -117,6 +117,19 @@ impl<'ast> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, '_> 
         if node.1.is_comparison_op() {
             // TODO: what about incompatible comparisons?
             Type::Bool
+        } else if node.1.is_bitwise_op() {
+            if lhs_type != Type::Int || rhs_type != Type::Int {
+                self.semantic_error_list.report_error(
+                    span,
+                    format!(
+                        "expected both operands to be of type 'int', but the left-hand side has type '{}' and the right-hand side has type '{}'",
+                        lhs_type, rhs_type
+                    ),
+                );
+                return Type::Error;
+            }
+
+            Type::Int
         } else if node.1.is_logical_op() {
             if lhs_type != Type::Bool {
                 self.semantic_error_list
@@ -151,7 +164,20 @@ impl<'ast> SemanticAnalysisPass<'ast, Type<'ast>> for TypeCheckerPass<'ast, '_> 
 
     fn visit_unary_operation(&mut self, _: Handle, node: &'ast UnaryOperation<'ast>, span: Span) -> Type<'ast> {
         let rhs_type = self.visit(&node.1);
-        if !rhs_type.is_numeric() {
+        if node.0 == UnaryOperationKind::BitwiseNot && rhs_type != Type::Int {
+            // Don't report propagated errors
+            if !rhs_type.is_error() {
+                self.semantic_error_list.report_error(
+                    span,
+                    format!(
+                        "unary operator '{}' expects a value of type 'int', found a value of type '{}' instead",
+                        node.0.to_human_readable_str(),
+                        rhs_type
+                    ),
+                );
+            }
+            Type::Error
+        } else if !rhs_type.is_numeric() {
             // Don't report propagated errors
             if !rhs_type.is_error() {
                 self.semantic_error_list.report_error(
