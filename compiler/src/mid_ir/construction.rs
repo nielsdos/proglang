@@ -215,7 +215,7 @@ impl<'ctx> Construction<'ctx> {
     fn construct_from_ast_ensure_statement_list(&mut self, ast: &'ctx Spanned<Ast>) -> MidStatementList<'ctx> {
         match &ast.0 {
             Ast::StatementList(statement_list) => self.construct_from_statement_list(statement_list),
-            _ => unreachable!(),
+            _ => panic!("Not a statement list: {:?}", ast),
         }
     }
 

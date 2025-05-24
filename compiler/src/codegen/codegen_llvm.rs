@@ -587,7 +587,6 @@ impl<'ctx> CodeGenInner<'ctx> {
                                 .builder
                                 .build_select(cmp, self.int_type.const_int(0, false), shifted_result, "shift_select")
                                 .expect("valid builder")
-                                .into()
                         }
                         BinaryOperationKind::Addition => {
                             if lhs_value.is_float_value() {

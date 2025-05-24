@@ -185,14 +185,38 @@ where
             .ignore_then(parse_expression())
             .then_ignore(just(Token::Then))
             .then(statement_list.clone())
+            .then(
+                just(Token::Else)
+                    .ignore_then(just(Token::If))
+                    .ignore_then(parse_expression())
+                    .then_ignore(just(Token::Then))
+                    .then(statement_list.clone())
+                    .map_with(|(condition, then_statements), extra| (condition, then_statements, extra.span()))
+                    .repeated()
+                    .collect::<Vec<_>>(),
+            )
             .then(just(Token::Else).ignore_then(statement_list.clone()).or_not())
             .then_ignore(just(Token::End))
-            .map_with(|((condition, then_statements), else_statements), extra| {
+            .map_with(|(((condition, then_statements), else_if_blocks), else_statements), extra| {
+                let else_if_statements = else_if_blocks.into_iter().rfold(else_statements, |acc, (condition, statements, span)| {
+                    Some((
+                        Ast::StatementList(StatementList(vec![(
+                            Ast::IfStatement(IfStatement {
+                                condition: Box::new(condition),
+                                then_statements: Box::new(statements),
+                                else_statements: acc.map(Box::new),
+                            }),
+                            span,
+                        )])),
+                        span,
+                    ))
+                });
+
                 (
                     Ast::IfStatement(IfStatement {
                         condition: Box::new(condition),
                         then_statements: Box::new(then_statements),
-                        else_statements: else_statements.map(Box::new),
+                        else_statements: else_if_statements.map(Box::new),
                     }),
                     extra.span(),
                 )
